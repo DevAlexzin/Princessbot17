@@ -2,7 +2,7 @@ import fs from 'fs';
 import { watchFile, unwatchFile } from 'fs'
 import { fileURLToPath } from 'url'
 
-global.owner = ['5492916450307']
+global.owner = ['51928667743']
 
 /*  ⚠︎ INFORMATION ⚠︎
 Esta key solo está disponible en *cafirexos.com*.  
@@ -15,7 +15,7 @@ global.api = {
 }
 
 global.msgglobal = '✿⸝꙳.˖ Ocurrió un problema, contacte al creador'
-global.dev = `ʙᴜɪʟᴛ ʙʏ ɪ'ᴍ ᴅɪᴇɢᴏ ♡`
+global.dev = `ʙᴜɪʟᴛ ʙʏ ᴀʟᴇxᴀɴᴅᴇʀ`
 
 global.mess = {
   socket: '(∩´͈ ᴖ `͈∩ ྀི) Este comando solo puede ser ejecutado por un Socket.',

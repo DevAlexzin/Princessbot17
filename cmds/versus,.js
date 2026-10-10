@@ -1,7 +1,7 @@
 import db from "#db"
 
 export default {
-  command: ['versus'],
+  command: ['versus', 'vs'],
   category: 'grupo',
   botAdmin: true,
   run: async ({ msg, sock }) => {

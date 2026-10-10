@@ -1,8 +1,11 @@
 import db from "#db"
 export default {
-  command: ['hidetag', 'tag'],
+  command: ['aviso', 'n'],
   category: 'grupo',
   isAdmin: true,
+  noPrefix: true,
+  sinPrefijo: true,
+  withoutPrefix: true,
   run: async ({ msg, sock, args }) => {
     const text = args.join(' ')
     const groupMetadata = msg.isGroup ? await sock.groupMetadata(msg.chat).catch(() => null) : null

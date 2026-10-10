@@ -55,7 +55,7 @@ export default {
 
     const sugg = `❀ 𝗦𝗢𝗟𝗜𝗖𝗜𝗧𝗨𝗗 𝗥𝗘𝗖𝗜𝗕𝗜𝗗𝗔
 
-✩ *Usuario ›* ${msg.pushName}
+✩ *Cliente ›* ${msg.pushName}
 ✿ *Enlace ›* ${args.join(' ')}
 ✿ *Chat ›* ${grupo}
 

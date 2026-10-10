@@ -7,20 +7,23 @@ export default {
   run: async ({ msg, sock }) => {
     console.log("========================================");
     console.log("🔍 [DEBUG] Comando 'versus' ejecutado.");
-    console.log("📩 [DEBUG] Mensaje completo:", JSON.stringify(msg, null, 2));
+    console.log("📩 [DEBUG] msg.text:", msg.text);
+    console.log("📩 [DEBUG] msg.body:", msg.body);
     console.log("========================================");
 
     try {
-      // Extraemos el texto del mensaje
-      const textoCompleto = msg.text || msg.body || '';
-      console.log("📝 [DEBUG] Texto completo del mensaje:", textoCompleto);
+      // ✅ Extraemos el texto de forma más robusta
+      // Intentamos con msg.text, luego con msg.body, y si no, con el texto del mensaje
+      let textoCompleto = msg.text || msg.body || '';
+      
+      // Si el texto aún contiene el comando, lo quitamos
+      // Buscamos el patrón ".versus" (o con prefijo) y lo eliminamos
+      textoCompleto = textoCompleto.replace(/^[.\/!#]?versus\s*/i, '').trim();
+      
+      console.log("📝 [DEBUG] Texto después de quitar el comando:", textoCompleto);
 
-      // Quitamos el comando ".versus" y separamos por "|"
-      const textoLimpio = textoCompleto.replace(/^\.versus\s*/i, '').trim();
-      console.log("🧹 [DEBUG] Texto limpio (sin comando):", textoLimpio);
-
-      // ✅ Si no hay datos, pedir los datos
-      if (!textoLimpio || textoLimpio === '') {
+      // ✅ Si después de quitar el comando no queda nada, pedimos los datos
+      if (!textoCompleto || textoCompleto.length === 0) {
         const pedirDatos = `˖ ݁⋆.˚🏹 𝙑𝙚𝙧𝙨𝙪𝙨 𝙘𝙤𝙤𝙧𝙙𝙞𝙣𝙖𝙙𝙤
 
 ꕤ ╴╴╴╴ꕤ ╴╴╴╴ꕤ ╴╴╴╴ꕤ
@@ -41,7 +44,7 @@ export default {
         return;
       }
 
-      const partes = textoLimpio.split('|').map(item => item.trim());
+      const partes = textoCompleto.split('|').map(item => item.trim());
       console.log("📊 [DEBUG] Partes separadas por '|':", partes);
 
       // Asignamos los valores
@@ -50,16 +53,14 @@ export default {
       const reglas = partes[2] || 'nuestras';
       const modalidad = partes[3] || '500';
       
-      // ✅ El usuario envía la hora (o si no, usamos la hora actual como respaldo)
+      // Hora: si el usuario la puso, la usamos. Si no, usamos la hora actual.
       const ahora = new Date();
       const horas = ahora.getHours().toString().padStart(2, '0');
       const minutos = ahora.getMinutes().toString().padStart(2, '0');
       const horaActual = `${horas}:${minutos}`;
-      
-      // Si el usuario puso hora, la usamos. Si no, usamos la hora actual.
       const horaPersonalizada = partes[4] || horaActual;
 
-      // ✅ El bot genera el día y la fecha automáticamente
+      // El bot genera el día y la fecha automáticamente
       const diasSemana = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
       const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
       
@@ -67,7 +68,6 @@ export default {
       const diaMes = ahora.getDate();
       const mesActual = meses[ahora.getMonth()];
       
-      // Construimos: "16 🇵🇪 — Lunes, 10 de Octubre"
       const horaDia = `${horaPersonalizada} — ${diaSemana}, ${diaMes} de ${mesActual}`;
 
       console.log("✅ [DEBUG] Datos extraídos:");
@@ -75,9 +75,7 @@ export default {
       console.log("   - Num Rival:", numRival);
       console.log("   - Reglas:", reglas);
       console.log("   - Modalidad:", modalidad);
-      console.log("   - Hora (usuario):", horaPersonalizada);
-      console.log("   - Fecha (auto):", `${diaSemana}, ${diaMes} de ${mesActual}`);
-      console.log("   - Resultado final:", horaDia);
+      console.log("   - Hora/Día:", horaDia);
 
       const versusMsg = `˖ ݁⋆.˚🏹 𝙑𝙚𝙧𝙨𝙪𝙨 𝙘𝙤𝙤𝙧𝙙𝙞𝙣𝙖𝙙𝙤
 

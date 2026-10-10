@@ -4,20 +4,23 @@ export default {
   command: ['versus'],
   category: 'grupo',
   botAdmin: true,
-  run: async ({ msg, sock, args }) => {
+  run: async ({ msg, sock }) => {
     try {
-      // Extraemos el texto que el usuario escribió después del comando
-      // Ejemplo: .versus @nexus_hikari | +54 9 383 492-2367 | nuestras | 500 | 22
-      const textoUsuario = args.join(' ').split('|').map(item => item.trim());
+      // Extraemos el texto del mensaje de forma segura
+      // msg.text suele contener todo el texto. Si no, usamos msg.body o msg.message
+      const textoCompleto = msg.text || msg.body || '';
       
-      // Asignamos los valores a variables (con valores por defecto por si falta alguno)
-      const igRival = textoUsuario[0] || '@usuario';
-      const numRival = textoUsuario[1] || '+00 000 000-0000';
-      const reglas = textoUsuario[2] || 'nuestras';
-      const modalidad = textoUsuario[3] || '500';
-      const horaDia = textoUsuario[4] || '22🇦🇷 — 09/Octubre';
+      // Quitamos el comando ".versus" y separamos por "|"
+      const textoLimpio = textoCompleto.replace(/^\.versus\s*/i, '').trim();
+      const partes = textoLimpio.split('|').map(item => item.trim());
 
-      // Construimos el mensaje con la estructura exacta que pediste
+      // Asignamos los valores (con valores por defecto)
+      const igRival = partes[0] || '@usuario';
+      const numRival = partes[1] || '+00 000 000-0000';
+      const reglas = partes[2] || 'nuestras';
+      const modalidad = partes[3] || '500';
+      const horaDia = partes[4] || '22🇦🇷 — 09/Octubre';
+
       const versusMsg = `˖ ݁⋆.˚🏹 𝙑𝙚𝙧𝙨𝙪𝙨 𝙘𝙤𝙤𝙧𝙙𝙞𝙣𝙖𝙙𝙤
 
 ꕤ ╴╴╴╴ꕤ ╴╴╴╴ꕤ ╴╴╴╴ꕤ
@@ -39,12 +42,10 @@ export default {
 ்⋆ ✮🍒 Horᥲrιo/Dιᥲ
 ㅤ╰─⋆ ▸ › ${horaDia}`;
 
-      // Enviamos el mensaje respondiendo al comando
       await sock.reply(msg.chat, versusMsg, msg);
 
     } catch (e) {
-      console.error(e);
-      // Si hay un error, enviamos un mensaje genérico
+      console.error("Error en comando versus:", e);
       await sock.reply(msg.chat, '❌ Ocurrió un error al procesar el versus.', msg);
     }
   },

@@ -1,6 +1,10 @@
 import db from "#db";
+import fs from 'fs';
+import path from 'path';
 import { commands } from '../../lib/system/comandos.js';
 import { linksPreview } from '#serialize';
+
+const menuImagePath = path.join(process.cwd(), 'menu.jpeg');
 
 export default {
   command: ['allmenu', 'help', 'menu'],
@@ -135,11 +139,6 @@ ${String.fromCharCode(8206).repeat(4000)}`;
         menu += `\n ㅤׅㅤ۫ㅤㅤ      ﹙❀﹚ㅤׅㅤㅤ˚ㅤ\n`;
       }
 
-      const isVideo =
-        banner.includes('.mp4') ||
-        banner.includes('.gif') ||
-        banner.includes('.webm');
-
       const contextBase = {
         mentionedJid: null,
         isForwarded: false,
@@ -149,6 +148,25 @@ ${String.fromCharCode(8206).repeat(4000)}`;
           newsletterName: "Canal Oficial",
         },*/
       };
+
+      // ✅ AHORA: si existe menu.jpeg en la raíz del repo, se envía como imagen con caption
+      if (fs.existsSync(menuImagePath)) {
+        return sock.sendMessage(
+          msg.chat,
+          {
+            image: fs.readFileSync(menuImagePath),
+            caption: menu.trim(),
+            contextInfo: contextBase,
+          },
+          { quoted: msg }
+        );
+      }
+
+      // 🔁 Fallback: si no existe menu.jpeg, se comporta como antes (banner o texto)
+      const isVideo =
+        banner.includes('.mp4') ||
+        banner.includes('.gif') ||
+        banner.includes('.webm');
 
       if (isVideo) {
         return sock.sendMessage(

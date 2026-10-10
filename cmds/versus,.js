@@ -1,28 +1,27 @@
 import db from "#db"
 
 export default {
-  command: ['versus', 'vs'],
+  command: ['versus', 'vs'],  // ✅ Ahora acepta .versus y .vs
   category: 'grupo',
   botAdmin: true,
   run: async ({ msg, sock }) => {
     console.log("========================================");
-    console.log("🔍 [DEBUG] Comando 'versus' ejecutado.");
+    console.log("🔍 [DEBUG] Comando 'versus/vs' ejecutado.");
     console.log("📩 [DEBUG] msg.text:", msg.text);
     console.log("📩 [DEBUG] msg.body:", msg.body);
     console.log("========================================");
 
     try {
-      // ✅ Extraemos el texto de forma más robusta
-      // Intentamos con msg.text, luego con msg.body, y si no, con el texto del mensaje
+      // ✅ Extraemos el texto
       let textoCompleto = msg.text || msg.body || '';
       
-      // Si el texto aún contiene el comando, lo quitamos
-      // Buscamos el patrón ".versus" (o con prefijo) y lo eliminamos
-      textoCompleto = textoCompleto.replace(/^[.\/!#]?versus\s*/i, '').trim();
+      // ✅ Quitamos el comando (versus o vs) con cualquier prefijo
+      // El regex detecta: .versus, /versus, !versus, #versus, versus, .vs, /vs, !vs, #vs, vs
+      textoCompleto = textoCompleto.replace(/^[.\/!#]?(versus|vs)\s*/i, '').trim();
       
       console.log("📝 [DEBUG] Texto después de quitar el comando:", textoCompleto);
 
-      // ✅ Si después de quitar el comando no queda nada, pedimos los datos
+      // ✅ Si no hay datos, pedimos los datos
       if (!textoCompleto || textoCompleto.length === 0) {
         const pedirDatos = `˖ ݁⋆.˚🏹 𝙑𝙚𝙧𝙨𝙪𝙨 𝙘𝙤𝙤𝙧𝙙𝙞𝙣𝙖𝙙𝙤
 
@@ -37,6 +36,8 @@ export default {
 *📌 Ejemplo:*
 \`.versus @nexus_hikari | +54 9 383 492-2367 | nuestras | 500 | 22🇦🇷\`
 
+*💡 También puedes usar:* \`.vs\`
+
 > 💡 *Nota:* El día y la fecha se agregan automáticamente, solo debes enviar la hora del versus.`;
 
         await sock.sendMessage(msg.chat, { text: pedirDatos.trim() }, { quoted: msg });
@@ -47,20 +48,17 @@ export default {
       const partes = textoCompleto.split('|').map(item => item.trim());
       console.log("📊 [DEBUG] Partes separadas por '|':", partes);
 
-      // Asignamos los valores
       const igRival = partes[0] || '@usuario';
       const numRival = partes[1] || '+00 000 000-0000';
       const reglas = partes[2] || 'nuestras';
       const modalidad = partes[3] || '500';
       
-      // Hora: si el usuario la puso, la usamos. Si no, usamos la hora actual.
       const ahora = new Date();
       const horas = ahora.getHours().toString().padStart(2, '0');
       const minutos = ahora.getMinutes().toString().padStart(2, '0');
       const horaActual = `${horas}:${minutos}`;
       const horaPersonalizada = partes[4] || horaActual;
 
-      // El bot genera el día y la fecha automáticamente
       const diasSemana = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
       const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
       

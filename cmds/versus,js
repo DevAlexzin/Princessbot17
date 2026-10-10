@@ -1,18 +1,24 @@
+import db from "#db"
+
 export default {
-  command: ['versus', 'vs'],
-  category: 'gacha', // cámbialo si usas otra categoría
+  command: ['versus'],
+  category: 'grupo',
+  botAdmin: true,
   run: async ({ msg, sock, args }) => {
-    const texto = args.join(' ');
-    const partes = texto.split('|').map(p => p.trim());
+    try {
+      // Extraemos el texto que el usuario escribió después del comando
+      // Ejemplo: .versus @nexus_hikari | +54 9 383 492-2367 | nuestras | 500 | 22
+      const textoUsuario = args.join(' ').split('|').map(item => item.trim());
+      
+      // Asignamos los valores a variables (con valores por defecto por si falta alguno)
+      const igRival = textoUsuario[0] || '@usuario';
+      const numRival = textoUsuario[1] || '+00 000 000-0000';
+      const reglas = textoUsuario[2] || 'nuestras';
+      const modalidad = textoUsuario[3] || '500';
+      const horaDia = textoUsuario[4] || '22🇦🇷 — 09/Octubre';
 
-    // Orden de campos: @ig | numero | reglas | modalidad | hora
-    const igRival   = partes[0] || 'No especificado';
-    const numRival  = partes[1] || 'No especificado';
-    const reglas    = partes[2] || 'No especificado';
-    const modalidad = partes[3] || 'No especificado';
-    const hora      = partes[4] || 'No especificada';
-
-    const mensaje = `˖ ݁⋆.˚🏹 𝙑𝙚𝙧𝙨𝙪𝙨 𝙘𝙤𝙤𝙧𝙙𝙞𝙣𝙖𝙙𝙤
+      // Construimos el mensaje con la estructura exacta que pediste
+      const versusMsg = `˖ ݁⋆.˚🏹 𝙑𝙚𝙧𝙨𝙪𝙨 𝙘𝙤𝙤𝙧𝙙𝙞𝙣𝙖𝙙𝙤
 
 ꕤ ╴╴╴╴ꕤ ╴╴╴╴ꕤ ╴╴╴╴ꕤ
 
@@ -30,13 +36,16 @@ export default {
 ்⋆ ✮🍯 Modᥲᥣιdᥲd
 ㅤ╰─⋆ ▸ › ${modalidad}
 
-்⋆ ✮⏰ H᥆rᥲ
-ㅤ╰─⋆ ▸ › ${hora}`;
+்⋆ ✮🍒 Horᥲrιo/Dιᥲ
+ㅤ╰─⋆ ▸ › ${horaDia}`;
 
-    return sock.sendMessage(
-      msg.chat,
-      { text: mensaje },
-      { quoted: msg }
-    );
-  }
+      // Enviamos el mensaje respondiendo al comando
+      await sock.reply(msg.chat, versusMsg, msg);
+
+    } catch (e) {
+      console.error(e);
+      // Si hay un error, enviamos un mensaje genérico
+      await sock.reply(msg.chat, '❌ Ocurrió un error al procesar el versus.', msg);
+    }
+  },
 };

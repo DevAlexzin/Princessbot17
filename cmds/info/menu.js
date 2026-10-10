@@ -44,8 +44,8 @@ export default {
 
 ᅟᅟ︶͜︶͜︶ᅟᅟ֪ᅟ֪ᅟᅟ︶͜︶͜︶
 
-> ૮(˶ᵔᕕᔔ˶)ა Conéctate como *SubBot* en nuestra web oficial:
-> ✐ ${link}
+> ૮(˶ᵔᕕᔔ˶)ა Contactate en nuestra web oficial:
+> ✐ ${links}
 
 ${String.fromCharCode(8206).repeat(4000)}`;
 

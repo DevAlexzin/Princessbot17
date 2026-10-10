@@ -167,7 +167,7 @@ ${String.fromCharCode(8206).repeat(4000)}`;
             'canonical-url': link,
             'matched-text': link,
             title: botname,
-            description: `${botname2}, Built With 🤍 By Stellar`,
+            description: `${botname2}, ʙᴜɪʟᴛ ʙʏ ᴀʟᴇxᴀɴᴅᴇʀ`,
             jpegThumbnail: imageMessage?.jpegThumbnail
               ? Buffer.from(imageMessage.jpegThumbnail)
               : undefined,

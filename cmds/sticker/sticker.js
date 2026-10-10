@@ -13,7 +13,7 @@ export default {
       const mime = (quoted.msg || quoted).mimetype || ''
       let user = await db.getUser(msg.sender)
       const name = user.name
-      let texto1 = user.metadatos || `S'ᴛᴇʟʟᴀʀ 🧠 WᴀBᴏᴛ`
+      let texto1 = user.metadatos || `S'Princess Bot`
       let texto2 = user.metadatos2 || `@${name}`
 
       let marca = args.join(' ').trim().split(/[\u2022|]/).map(part => part.trim())

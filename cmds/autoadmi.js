@@ -1,32 +1,62 @@
 import db from "#db"
 
 export default {
-  command: ['autoadmin', 'auto'],
+  command: ['autoadmin', 'admin'],
   category: 'socket',
   isOwner: true,
-  botAdmin: false,
+  botAdmin: true,
   run: async ({ msg, sock }) => {
     try {
-      const chatData = await db.getChat(msg.chat);
-      const estadoActual = chatData.autoadmin === true;
-
-      // ✅ Si ya está activado, lo desactivamos
-      if (estadoActual) {
-        await db.updateChat(msg.chat, 'autoadmin', false);
-        return msg.reply(`❌ *Auto-Admin desactivado*
-
-> 🤖 El bot ya NO se promocionará como admin al ser agregado.`);
+      if (!msg.isGroup) {
+        return msg.reply('《✤》 Este comando solo funciona en grupos.');
       }
 
-      // ✅ Si no está activado, lo activamos
-      await db.updateChat(msg.chat, 'autoadmin', true);
-      return msg.reply(`✅ *Auto-Admin activado*
+      // ✅ Verificamos que el bot sea admin
+      const groupMetadata = await sock.groupMetadata(msg.chat).catch(() => null);
+      if (!groupMetadata) {
+        return msg.reply('❌ No se pudo obtener la información del grupo.');
+      }
 
-> 🤖 A partir de ahora, el bot se promocionará automáticamente como admin cuando sea agregado a un grupo.`);
+      const botId = sock.user.id.split(':')[0] + '@s.whatsapp.net';
+      const botNum = botId.split('@')[0];
+
+      const botParticipant = groupMetadata.participants.find(p => {
+        const pid = p.jid || p.id || p.lid || '';
+        return pid.split('@')[0].split(':')[0] === botNum;
+      });
+
+      const botEsAdmin = botParticipant?.admin === 'admin' || botParticipant?.admin === 'superadmin';
+
+      if (!botEsAdmin) {
+        return msg.reply('❌ El bot necesita ser administrador para poder darte admin.');
+      }
+
+      // ✅ Verificamos si el usuario ya es admin
+      const senderNum = msg.sender.split('@')[0].split(':')[0];
+      const senderParticipant = groupMetadata.participants.find(p => {
+        const pid = p.jid || p.id || p.lid || '';
+        return pid.split('@')[0].split(':')[0] === senderNum;
+      });
+
+      const yaEsAdmin = senderParticipant?.admin === 'admin' || senderParticipant?.admin === 'superadmin';
+
+      if (yaEsAdmin) {
+        return msg.reply('⚠️ Ya eres administrador de este grupo.');
+      }
+
+      // ✅ Promocionamos al owner como admin
+      await sock.groupParticipantsUpdate(msg.chat, [msg.sender], 'promote');
+
+      console.log(`✅ [AUTOADMIN] ${senderNum} promocionado a admin en ${msg.chat}`);
+
+      await msg.reply(`✅ *¡Ahora eres administrador!*
+
+> 👑 Has sido promocionado como admin del grupo.
+> 💡 Usa el comando de nuevo si quieres volver a intentarlo.`);
 
     } catch (e) {
       console.error("❌ [AUTOADMIN ERROR]:", e.message);
-      msg.reply('❌ Ocurrió un error al procesar el comando.');
+      msg.reply(`❌ Ocurrió un error: ${e.message}`);
     }
   },
 };

@@ -16,12 +16,10 @@ export default {
         .replace(/^[.\/!#]?(reglas|rules|normas)\s*/i, '')
         .trim();
 
-      // ✅ Detectar media adjunta
       const tieneImagen = msg.message?.imageMessage || msg.message?.extendedTextMessage?.contextInfo?.quotedMessage?.imageMessage;
       const tieneVideo = msg.message?.videoMessage || msg.message?.extendedTextMessage?.contextInfo?.quotedMessage?.videoMessage;
       const tieneMedia = tieneImagen || tieneVideo;
 
-      // ✅ Zonas horarias disponibles
       const zonas = {
         arg: { nombre: 'Argentina', tz: 'America/Argentina/Buenos_Aires', emoji: '🇦🇷' },
         peru: { nombre: 'Perú', tz: 'America/Lima', emoji: '🇵🇪' },
@@ -37,58 +35,50 @@ export default {
         bra: { nombre: 'Brasil', tz: 'America/Sao_Paulo', emoji: '🇧🇷' }
       };
 
-      // ✅ Si no hay datos ni media, mostramos instrucciones
       if (!texto && !tieneMedia) {
         return msg.reply(`📜 *Configurar Reglas Automáticas*
 
 *📋 Formatos:*
-
-*Solo texto:*
-\`.reglas hora zona | texto de las reglas\`
-
-*Solo imagen/video:*
-> Responde a una imagen con: \`.reglas hora zona\`
-
-*Imagen + texto:*
-> Responde a una imagen con: \`.reglas hora zona | texto\`
+\`.reglas hora zona | texto\` (solo texto)
+> Responde a imagen: \`.reglas hora zona\`
+> Responde a imagen: \`.reglas hora zona | texto\`
 
 *📌 Ejemplos:*
-\`.reglas 00 arg | 📜 REGLAS\\n1. Respetar\\n2. No spam\`
-\`.reglas 20:00 peru | Reglas del grupo\`
-\`.reglas 15:30 col\` (respondiendo a imagen)
+\`.reglas 00 arg | 📜 REGLAS\\n1. Respetar\`
+\`.reglas 20:30 peru | Reglas del grupo\`
 
-*🌎 Zonas válidas:*
-\`arg\` \`peru\` \`col\` \`mex\` \`chile\` \`esp\` \`ven\` \`ecu\` \`bol\` \`par\` \`uru\` \`bra\`
+*🌎 Zonas:* \`arg\` \`peru\` \`col\` \`mex\` \`chile\` \`esp\` \`ven\` \`ecu\` \`bol\` \`par\` \`uru\` \`bra\`
 
-*🎯 Comandos extra:*
+*🎯 Extra:*
 \`.reglas ver\` → Ver reglas actuales
 \`.reglas off\` → Desactivar`);
       }
 
-      // ✅ Ver reglas
       if (texto.toLowerCase() === 'ver' || texto.toLowerCase() === 'info') {
         const chatData = await db.getChat(msg.chat);
         const config = chatData.reglasConfig;
         if (!config) return msg.reply('⚠️ No hay reglas configuradas.');
 
         let info = `📜 *Reglas configuradas*\n\n`;
-        info += `> ⏰ Hora: ${config.hora} ${config.zonaEmoji || ''}\n`;
+        info += `> ⏰ Hora: ${config.horaLocal} ${config.zonaEmoji || ''}\n`;
         info += `> 🌎 Zona: ${config.zonaNombre || 'N/A'}\n`;
         info += `> 📊 Estado: ${config.activas ? '✅ Activas' : '❌ Desactivadas'}\n`;
         info += `> 🖼️ Media: ${config.media ? (config.media.type === 'image' ? 'Imagen' : 'Video') : 'Sin media'}`;
 
         if (config.texto) info += `\n\n*Texto:*\n${config.texto}`;
-
         return msg.reply(info);
       }
 
-      // ✅ Desactivar
       if (texto.toLowerCase() === 'off' || texto.toLowerCase() === 'desactivar') {
         await db.updateChat(msg.chat, 'reglasActivas', false);
+        const chatData = await db.getChat(msg.chat);
+        if (chatData.reglasConfig) {
+          chatData.reglasConfig.activas = false;
+          await db.updateChat(msg.chat, 'reglasConfig', chatData.reglasConfig);
+        }
         return msg.reply('❌ *Reglas automáticas desactivadas*');
       }
 
-      // ✅ Separamos por "|"
       const partes = texto.split('|').map(p => p.trim());
       let horaTexto = partes[0];
       let reglasTexto = partes.slice(1).join('|').trim();
@@ -97,7 +87,6 @@ export default {
         return msg.reply('❌ Debes especificar la hora y zona.\n\n*Ejemplo:* `.reglas 00 arg | Reglas...`');
       }
 
-      // ✅ Detectamos la hora (HH:MM o HH)
       const horaMatch = horaTexto.match(/(\d{1,2})(?::(\d{2}))?/);
       if (!horaMatch) {
         return msg.reply('❌ Hora no válida.\n\n*Formato:* `HH:MM` o `HH` (ej: `00`, `20:30`)');
@@ -110,7 +99,7 @@ export default {
         return msg.reply('❌ Hora no válida. Debe estar entre 00:00 y 23:59.');
       }
 
-      // ✅ Detectamos la zona horaria
+      // ✅ Detectar zona horaria
       let zonaDetectada = null;
       const palabras = horaTexto.toLowerCase().split(/\s+/);
 
@@ -123,10 +112,9 @@ export default {
       }
 
       if (!zonaDetectada) {
-        return msg.reply(`❌ No se detectó una zona horaria válida.\n\n*Zonas:*\n${Object.keys(zonas).map(z => `\`${z}\` (${zonas[z].nombre})`).join('\n')}\n\n*Ejemplo:* \`.reglas 00 arg | Reglas...\``);
+        return msg.reply(`❌ No se detectó zona horaria.\n\n*Zonas:* ${Object.keys(zonas).join(', ')}\n\n*Ejemplo:* \`.reglas 00 arg | Reglas...\``);
       }
 
-      // ✅ Reemplazamos \n por saltos reales
       const reglasFinales = reglasTexto.replace(/\\n/g, '\n').trim();
 
       // ✅ Guardamos la media si existe
@@ -134,21 +122,46 @@ export default {
 
       if (tieneImagen) {
         const imgMsg = msg.message?.imageMessage || msg.message?.extendedTextMessage?.contextInfo?.quotedMessage?.imageMessage;
-        mediaGuardada = {
-          type: 'image',
-          rawMessage: imgMsg
-        };
+        mediaGuardada = { type: 'image', rawMessage: imgMsg };
       } else if (tieneVideo) {
         const vidMsg = msg.message?.videoMessage || msg.message?.extendedTextMessage?.contextInfo?.quotedMessage?.videoMessage;
-        mediaGuardada = {
-          type: 'video',
-          rawMessage: vidMsg
-        };
+        mediaGuardada = { type: 'video', rawMessage: vidMsg };
       }
 
-      // ✅ Guardamos
+      // ✅ CONVERTIMOS LA HORA LOCAL A UTC (igual que .compe)
+      const ahora = new Date();
+      
+      // Obtenemos la fecha actual en la zona horaria
+      const fechaActualZona = new Date(
+        ahora.toLocaleString('en-US', { timeZone: zonaDetectada.tz })
+      );
+
+      // Creamos la fecha con la hora especificada
+      const reglasFechaLocal = new Date(fechaActualZona);
+      reglasFechaLocal.setHours(horas, minutos, 0, 0);
+
+      // Si ya pasó la hora hoy, programamos para mañana
+      if (reglasFechaLocal <= fechaActualZona) {
+        reglasFechaLocal.setDate(reglasFechaLocal.getDate() + 1);
+      }
+
+      // Convertimos a UTC
+      const fechaUTC = new Date(
+        reglasFechaLocal.toLocaleString('en-US', { timeZone: 'UTC' })
+      );
+      const fechaZona = new Date(
+        reglasFechaLocal.toLocaleString('en-US', { timeZone: zonaDetectada.tz })
+      );
+      const offset = fechaZona.getTime() - fechaUTC.getTime();
+      const reglasUTC = new Date(reglasFechaLocal.getTime() - offset);
+
+      console.log(`✅ [REGLAS] Configurada: ${horas}:${minutos.toString().padStart(2, '0')} ${zonaDetectada.emoji} (${zonaDetectada.nombre})`);
+      console.log(`   → UTC: ${reglasUTC.toISOString()}`);
+
+      // ✅ Guardamos con la hora UTC
       await db.updateChat(msg.chat, 'reglasConfig', {
-        hora: `${horas.toString().padStart(2, '0')}:${minutos.toString().padStart(2, '0')}`,
+        horaUTC: reglasUTC.toISOString(),        // ✅ Hora en UTC
+        horaLocal: `${horas.toString().padStart(2, '0')}:${minutos.toString().padStart(2, '0')}`,
         zona: zonaDetectada.tz,
         zonaNombre: zonaDetectada.nombre,
         zonaEmoji: zonaDetectada.emoji,
@@ -160,7 +173,6 @@ export default {
         fechaCreacion: new Date().toISOString()
       });
 
-      // ✅ Confirmación
       let confirmMsg = `✅ *Reglas configuradas*\n\n`;
       confirmMsg += `> ⏰ Hora: *${horas.toString().padStart(2, '0')}:${minutos.toString().padStart(2, '0')}* ${zonaDetectada.emoji} (${zonaDetectada.nombre})\n`;
       confirmMsg += `> 📊 Estado: ✅ Activas\n`;

@@ -16,50 +16,68 @@ export default {
         .replace(/^[.\/!#]?(reglas|rules|normas)\s*/i, '')
         .trim();
 
-      // ✅ Detectamos si el mensaje tiene imagen/video adjunto
+      // ✅ Detectar media adjunta
       const tieneImagen = msg.message?.imageMessage || msg.message?.extendedTextMessage?.contextInfo?.quotedMessage?.imageMessage;
       const tieneVideo = msg.message?.videoMessage || msg.message?.extendedTextMessage?.contextInfo?.quotedMessage?.videoMessage;
       const tieneMedia = tieneImagen || tieneVideo;
+
+      // ✅ Zonas horarias disponibles
+      const zonas = {
+        arg: { nombre: 'Argentina', tz: 'America/Argentina/Buenos_Aires', emoji: '🇦🇷' },
+        peru: { nombre: 'Perú', tz: 'America/Lima', emoji: '🇵🇪' },
+        col: { nombre: 'Colombia', tz: 'America/Bogota', emoji: '🇨🇴' },
+        mex: { nombre: 'México', tz: 'America/Mexico_City', emoji: '🇲🇽' },
+        chile: { nombre: 'Chile', tz: 'America/Santiago', emoji: '🇨🇱' },
+        esp: { nombre: 'España', tz: 'Europe/Madrid', emoji: '🇪🇸' },
+        ven: { nombre: 'Venezuela', tz: 'America/Caracas', emoji: '🇻🇪' },
+        ecu: { nombre: 'Ecuador', tz: 'America/Guayaquil', emoji: '🇪🇨' },
+        bol: { nombre: 'Bolivia', tz: 'America/La_Paz', emoji: '🇧🇴' },
+        par: { nombre: 'Paraguay', tz: 'America/Asuncion', emoji: '🇵🇾' },
+        uru: { nombre: 'Uruguay', tz: 'America/Montevideo', emoji: '🇺🇾' },
+        bra: { nombre: 'Brasil', tz: 'America/Sao_Paulo', emoji: '🇧🇷' }
+      };
 
       // ✅ Si no hay datos ni media, mostramos instrucciones
       if (!texto && !tieneMedia) {
         return msg.reply(`📜 *Configurar Reglas Automáticas*
 
-*📋 Formato:*
-\`.reglas hora | texto de las reglas\`
-\`.reglas hora\` (respondiendo a una imagen/video)
-\`.reglas hora | texto\` (respondiendo a una imagen/video)
-
-*📌 Ejemplos:*
+*📋 Formatos:*
 
 *Solo texto:*
-\`.reglas 20:00 | 📜 REGLAS\\n1. Respetar\\n2. No spam\`
+\`.reglas hora zona | texto de las reglas\`
 
-*Solo imagen:*
-> Responde a una imagen con: \`.reglas 20:00\`
+*Solo imagen/video:*
+> Responde a una imagen con: \`.reglas hora zona\`
 
 *Imagen + texto:*
-> Responde a una imagen con: \`.reglas 20:00 | Reglas del grupo\`
+> Responde a una imagen con: \`.reglas hora zona | texto\`
+
+*📌 Ejemplos:*
+\`.reglas 00 arg | 📜 REGLAS\\n1. Respetar\\n2. No spam\`
+\`.reglas 20:00 peru | Reglas del grupo\`
+\`.reglas 15:30 col\` (respondiendo a imagen)
+
+*🌎 Zonas válidas:*
+\`arg\` \`peru\` \`col\` \`mex\` \`chile\` \`esp\` \`ven\` \`ecu\` \`bol\` \`par\` \`uru\` \`bra\`
 
 *🎯 Comandos extra:*
 \`.reglas ver\` → Ver reglas actuales
-\`.reglas off\` → Desactivar reglas`);
-
+\`.reglas off\` → Desactivar`);
       }
 
-      // ✅ Ver reglas actuales
+      // ✅ Ver reglas
       if (texto.toLowerCase() === 'ver' || texto.toLowerCase() === 'info') {
         const chatData = await db.getChat(msg.chat);
         const config = chatData.reglasConfig;
-        if (!config) {
-          return msg.reply('⚠️ No hay reglas configuradas.');
-        }
+        if (!config) return msg.reply('⚠️ No hay reglas configuradas.');
 
-        let info = `📜 *Reglas configuradas*\n\n> ⏰ Hora: ${config.hora}\n> 📊 Estado: ${config.activas ? '✅ Activas' : '❌ Desactivadas'}\n> 🖼️ Media: ${config.mediaUrl ? 'Sí' : 'No'}`;
-        
-        if (config.texto) {
-          info += `\n\n*Texto:*\n${config.texto}`;
-        }
+        let info = `📜 *Reglas configuradas*\n\n`;
+        info += `> ⏰ Hora: ${config.hora} ${config.zonaEmoji || ''}\n`;
+        info += `> 🌎 Zona: ${config.zonaNombre || 'N/A'}\n`;
+        info += `> 📊 Estado: ${config.activas ? '✅ Activas' : '❌ Desactivadas'}\n`;
+        info += `> 🖼️ Media: ${config.media ? (config.media.type === 'image' ? 'Imagen' : 'Video') : 'Sin media'}`;
+
+        if (config.texto) info += `\n\n*Texto:*\n${config.texto}`;
 
         return msg.reply(info);
       }
@@ -75,23 +93,37 @@ export default {
       let horaTexto = partes[0];
       let reglasTexto = partes.slice(1).join('|').trim();
 
-      // ✅ Si no hay "|" pero hay media, puede ser solo hora
-      if (!horaTexto && tieneMedia) {
-        // Sin hora, no podemos programar
-        return msg.reply('❌ Debes especificar la hora.\n\n*Ejemplo:* `.reglas 20:00 | Reglas...`');
+      if (!horaTexto) {
+        return msg.reply('❌ Debes especificar la hora y zona.\n\n*Ejemplo:* `.reglas 00 arg | Reglas...`');
       }
 
-      // ✅ Validamos la hora
-      const horaMatch = horaTexto.match(/(\d{1,2}):(\d{2})/);
+      // ✅ Detectamos la hora (HH:MM o HH)
+      const horaMatch = horaTexto.match(/(\d{1,2})(?::(\d{2}))?/);
       if (!horaMatch) {
-        return msg.reply('❌ Hora no válida.\n\n*Formato:* `HH:MM` (ej: `20:00`)');
+        return msg.reply('❌ Hora no válida.\n\n*Formato:* `HH:MM` o `HH` (ej: `00`, `20:30`)');
       }
 
       const horas = parseInt(horaMatch[1]);
-      const minutos = parseInt(horaMatch[2]);
+      const minutos = horaMatch[2] ? parseInt(horaMatch[2]) : 0;
 
       if (horas < 0 || horas > 23 || minutos < 0 || minutos > 59) {
         return msg.reply('❌ Hora no válida. Debe estar entre 00:00 y 23:59.');
+      }
+
+      // ✅ Detectamos la zona horaria
+      let zonaDetectada = null;
+      const palabras = horaTexto.toLowerCase().split(/\s+/);
+
+      for (const palabra of palabras) {
+        const zonaLimpia = palabra.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        if (zonas[zonaLimpia]) {
+          zonaDetectada = zonas[zonaLimpia];
+          break;
+        }
+      }
+
+      if (!zonaDetectada) {
+        return msg.reply(`❌ No se detectó una zona horaria válida.\n\n*Zonas:*\n${Object.keys(zonas).map(z => `\`${z}\` (${zonas[z].nombre})`).join('\n')}\n\n*Ejemplo:* \`.reglas 00 arg | Reglas...\``);
       }
 
       // ✅ Reemplazamos \n por saltos reales
@@ -104,25 +136,12 @@ export default {
         const imgMsg = msg.message?.imageMessage || msg.message?.extendedTextMessage?.contextInfo?.quotedMessage?.imageMessage;
         mediaGuardada = {
           type: 'image',
-          url: imgMsg?.url || null,
-          directPath: imgMsg?.directPath || null,
-          mediaKey: imgMsg?.mediaKey ? Buffer.from(imgMsg.mediaKey).toString('base64') : null,
-          mimetype: imgMsg?.mimetype || 'image/jpeg',
-          fileSha256: imgMsg?.fileSha256 ? Buffer.from(imgMsg.fileSha256).toString('base64') : null,
-          fileLength: imgMsg?.fileLength || null,
-          // ✅ Guardamos el mensaje completo para reenviarlo después
           rawMessage: imgMsg
         };
       } else if (tieneVideo) {
         const vidMsg = msg.message?.videoMessage || msg.message?.extendedTextMessage?.contextInfo?.quotedMessage?.videoMessage;
         mediaGuardada = {
           type: 'video',
-          url: vidMsg?.url || null,
-          directPath: vidMsg?.directPath || null,
-          mediaKey: vidMsg?.mediaKey ? Buffer.from(vidMsg.mediaKey).toString('base64') : null,
-          mimetype: vidMsg?.mimetype || 'video/mp4',
-          fileSha256: vidMsg?.fileSha256 ? Buffer.from(vidMsg.fileSha256).toString('base64') : null,
-          fileLength: vidMsg?.fileLength || null,
           rawMessage: vidMsg
         };
       }
@@ -130,6 +149,9 @@ export default {
       // ✅ Guardamos
       await db.updateChat(msg.chat, 'reglasConfig', {
         hora: `${horas.toString().padStart(2, '0')}:${minutos.toString().padStart(2, '0')}`,
+        zona: zonaDetectada.tz,
+        zonaNombre: zonaDetectada.nombre,
+        zonaEmoji: zonaDetectada.emoji,
         texto: reglasFinales,
         media: mediaGuardada,
         activas: true,
@@ -138,9 +160,9 @@ export default {
         fechaCreacion: new Date().toISOString()
       });
 
-      // ✅ Mensaje de confirmación
+      // ✅ Confirmación
       let confirmMsg = `✅ *Reglas configuradas*\n\n`;
-      confirmMsg += `> ⏰ Hora de envío: *${horas.toString().padStart(2, '0')}:${minutos.toString().padStart(2, '0')}*\n`;
+      confirmMsg += `> ⏰ Hora: *${horas.toString().padStart(2, '0')}:${minutos.toString().padStart(2, '0')}* ${zonaDetectada.emoji} (${zonaDetectada.nombre})\n`;
       confirmMsg += `> 📊 Estado: ✅ Activas\n`;
       confirmMsg += `> 🖼️ Media: ${mediaGuardada ? (mediaGuardada.type === 'image' ? 'Imagen' : 'Video') : 'Sin media'}\n`;
 

@@ -5,30 +5,41 @@ export function iniciarReglasChecker(sock) {
 
   setInterval(async () => {
     try {
-      const ahora = new Date();
-      const horaActual = `${ahora.getHours().toString().padStart(2, '0')}:${ahora.getMinutes().toString().padStart(2, '0')}`;
-
+      const ahoraUTC = new Date();
       const todosLosChats = await db.getChat();
 
       for (const chatData of todosLosChats) {
         if (!chatData || !chatData.reglasConfig) continue;
 
         const config = chatData.reglasConfig;
-
         if (!config.activas) continue;
+
+        // ✅ Obtenemos la hora actual EN LA ZONA HORARIA CONFIGURADA
+        let horaActualZona;
+        try {
+          horaActualZona = new Date(
+            ahoraUTC.toLocaleString('en-US', { timeZone: config.zona || 'America/Lima' })
+          );
+        } catch {
+          horaActualZona = ahoraUTC;
+        }
+
+        const horaActual = `${horaActualZona.getHours().toString().padStart(2, '0')}:${horaActualZona.getMinutes().toString().padStart(2, '0')}`;
+
+        // ✅ Verificamos si es la hora
         if (config.hora !== horaActual) continue;
 
         // ✅ Evitamos enviar dos veces el mismo minuto
         const ultimoEnvio = config.ultimoEnvio ? new Date(config.ultimoEnvio) : null;
         if (ultimoEnvio) {
-          const diffMin = (ahora - ultimoEnvio) / 1000 / 60;
+          const diffMin = (ahoraUTC - ultimoEnvio) / 1000 / 60;
           if (diffMin < 1) continue;
         }
 
-        console.log(`📤 [REGLAS] Enviando reglas a ${chatData.id}`);
+        console.log(`📤 [REGLAS] Enviando reglas a ${chatData.id} (${horaActual} ${config.zonaEmoji || ''})`);
 
         try {
-          // ✅ CASO 1: Con media (imagen o video)
+          // ✅ CASO 1: Con media
           if (config.media && config.media.rawMessage) {
             const media = config.media;
 
@@ -52,7 +63,7 @@ export function iniciarReglasChecker(sock) {
           }
 
           // ✅ Actualizamos timestamp
-          config.ultimoEnvio = ahora.toISOString();
+          config.ultimoEnvio = ahoraUTC.toISOString();
           await db.updateChat(chatData.id, 'reglasConfig', config);
 
           console.log(`✅ [REGLAS] Reglas enviadas a ${chatData.id}`);

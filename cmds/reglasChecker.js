@@ -1,4 +1,5 @@
 import db from "#db"
+import fs from 'fs'
 
 export function iniciarReglasChecker(sock) {
   console.log('📜 [REGLAS CHECKER] Sistema de reglas iniciado.');
@@ -9,7 +10,6 @@ export function iniciarReglasChecker(sock) {
       const todosLosChats = await db.getChat();
 
       for (const chatData of todosLosChats) {
-        // ✅ Leemos el ARRAY igual que compe
         const reglasProgramadas = chatData.reglasConfig || [];
         if (reglasProgramadas.length === 0) continue;
 
@@ -20,51 +20,57 @@ export function iniciarReglasChecker(sock) {
           if (!config.activas) continue;
 
           const horaProgramada = new Date(config.horaUTC);
-          const diff = (horaProgramada - ahora) / 1000 / 60; // Diferencia en minutos
+          const diff = (horaProgramada - ahora) / 1000 / 60;
 
-          console.log(`🕐 [REGLAS DEBUG] Chat: ${chatData.id.substring(0,5)}... | Faltan: ${diff.toFixed(1)} min | Config: ${config.horaLocal}`);
-
-          // ✅ Si ya pasó la hora por más de 2 minutos, lo eliminamos
-          if (diff < -2) {
-            huboCambios = true;
-            continue; 
-          }
-
-          // ✅ Si faltan entre 0 y 1 minuto (es la hora exacta)
-          if (diff <= 0 && diff > -1) {
-            console.log(`========================================`);
-            console.log(`📜 [REGLAS CHECKER] ¡HORA DETECTADA!`);
-            console.log(`⏰ Hora: ${config.horaLocal} ${config.zonaEmoji}`);
-            console.log(`========================================`);
+          // Si ya pasó la hora, se envía
+          if (diff <= 0 && diff > -2) {
+            console.log(`📜 [REGLAS CHECKER] Enviando reglas a ${chatData.id}`);
 
             try {
-              if (config.media && config.media.rawMessage) {
-                if (config.media.type === 'image') {
-                  await sock.sendMessage(chatData.id, { image: config.media.rawMessage, caption: config.texto || '' });
+              // ✅ LEEMOS EL ARCHIVO DESDE EL DISCO DURO
+              if (config.media && config.media.path) {
+                if (!fs.existsSync(config.media.path)) {
+                  console.error(`❌ [REGLAS] El archivo ya no existe: ${config.media.path}`);
                 } else {
-                  await sock.sendMessage(chatData.id, { video: config.media.rawMessage, caption: config.texto || '' });
+                  // Leemos el archivo como Buffer
+                  const bufferMedia = fs.readFileSync(config.media.path);
+
+                  if (config.media.type === 'image') {
+                    await sock.sendMessage(chatData.id, { 
+                      image: bufferMedia, 
+                      caption: config.texto || '' 
+                    });
+                  } else {
+                    await sock.sendMessage(chatData.id, { 
+                      video: bufferMedia, 
+                      caption: config.texto || '' 
+                    });
+                  }
                 }
               } else if (config.texto) {
-                await sock.sendMessage(chatData.id, { text: `📜 *REGLAS DEL GRUPO*\n\n${config.texto}\n\n> 💡 Por favor, respetar las reglas.` });
+                // Solo texto
+                await sock.sendMessage(chatData.id, { 
+                  text: `📜 *REGLAS DEL GRUPO*\n\n${config.texto}\n\n> 💡 Por favor, respetar las reglas.` 
+                });
               }
-              console.log(`✅ [REGLAS] Enviadas a ${chatData.id}`);
+              console.log(`✅ [REGLAS] Enviadas correctamente.`);
             } catch (err) {
               console.error(`❌ Error enviando reglas:`, err.message);
             }
 
-            // ✅ Al enviarlo, lo programamos para el día siguiente (+24 hrs)
+            // Reprogramamos para mañana
             const proximaHora = new Date(horaProgramada);
             proximaHora.setDate(proximaHora.getDate() + 1);
-            
             config.horaUTC = proximaHora.toISOString();
-            reglasRestantes.push(config); // Lo mantenemos en la lista
-          } else {
-            // Si aún no es la hora, lo dejamos en la lista
+            
+            reglasRestantes.push(config);
+          } else if (diff > 0) {
+            // Aún no es la hora
             reglasRestantes.push(config);
           }
         }
 
-        if (huboCambios) {
+        if (huboCambios || reglasRestantes.length !== reglasProgramadas.length) {
           await db.updateChat(chatData.id, 'reglasConfig', reglasRestantes);
         }
       }

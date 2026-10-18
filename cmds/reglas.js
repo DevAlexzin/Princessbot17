@@ -1,4 +1,7 @@
 import db from "#db"
+import fs from 'fs'
+import path from 'path'
+import { downloadContentFromMessage } from 'baileys'
 
 export default {
   command: ['reglas', 'rules', 'normas'],
@@ -29,29 +32,16 @@ export default {
         return msg.reply(`📜 *Configurar Reglas Automáticas*
 
 *Formatos:*
-\`.reglas hora zona | texto\` (solo texto)
+\`.reglas hora zona | texto\`
 > Responde a imagen: \`.reglas hora zona\`
-> Responde a imagen: \`.reglas hora zona | texto\`
 
 *Ejemplo:* \`.reglas 22:10 arg | 📜 REGLAS\\n1. Respetar\`
-*Zonas:* \`arg\` \`peru\` \`col\` \`mex\` \`chile\` \`esp\`
-
-*Extra:* \`.reglas ver\` | \`.reglas off\``);
+*Zonas:* \`arg\` \`peru\` \`col\` \`mex\` \`chile\` \`esp\``);
       }
 
       if (texto.toLowerCase() === 'off' || texto.toLowerCase() === 'desactivar') {
-        await db.updateChat(msg.chat, 'reglasConfig', []); // Guardamos array vacío
+        await db.updateChat(msg.chat, 'reglasConfig', []);
         return msg.reply('❌ *Reglas automáticas desactivadas*');
-      }
-
-      if (texto.toLowerCase() === 'ver' || texto.toLowerCase() === 'info') {
-        const chatData = await db.getChat(msg.chat);
-        const config = chatData.reglasConfig?.[0];
-        if (!config) return msg.reply('⚠️ No hay reglas configuradas.');
-        
-        let info = `📜 *Reglas configuradas*\n\n> ⏰ Hora: ${config.horaLocal} ${config.zonaEmoji}\n> 📊 Estado: ✅ Activas\n> 🖼️ Media: ${config.media ? 'Sí' : 'No'}`;
-        if (config.texto) info += `\n\n*Texto:*\n${config.texto}`;
-        return msg.reply(info);
       }
 
       const partes = texto.split('|').map(p => p.trim());
@@ -84,16 +74,49 @@ export default {
 
       const reglasFinales = reglasTexto.replace(/\\n/g, '\n').trim();
 
+      // ✅ PROCESO PARA DESCARGAR Y GUARDAR LA IMAGEN
       let mediaGuardada = null;
-      if (tieneImagen) {
-        const imgMsg = msg.message?.imageMessage || msg.message?.extendedTextMessage?.contextInfo?.quotedMessage?.imageMessage;
-        mediaGuardada = { type: 'image', rawMessage: imgMsg };
-      } else if (tieneVideo) {
-        const vidMsg = msg.message?.videoMessage || msg.message?.extendedTextMessage?.contextInfo?.quotedMessage?.videoMessage;
-        mediaGuardada = { type: 'video', rawMessage: vidMsg };
+      const carpetaReglas = path.join(process.cwd(), 'media', 'reglas');
+      
+      // Creamos la carpeta si no existe
+      if (!fs.existsSync(carpetaReglas)) {
+        fs.mkdirSync(carpetaReglas, { recursive: true });
       }
 
-      // ✅ CÁLCULO DE HORA EN UTC (Igual que compe)
+      if (tieneImagen || tieneVideo) {
+        try {
+          const tipo = tieneImagen ? 'image' : 'video';
+          const msgMedia = tieneImagen 
+            ? (msg.message?.imageMessage || msg.message?.extendedTextMessage?.contextInfo?.quotedMessage?.imageMessage)
+            : (msg.message?.videoMessage || msg.message?.extendedTextMessage?.contextInfo?.quotedMessage?.videoMessage);
+
+          // Descargamos el archivo
+          const stream = await downloadContentFromMessage(msgMedia, tipo);
+          let buffer = Buffer.from([]);
+          for await (const chunk of stream) {
+            buffer = Buffer.concat([buffer, chunk]);
+          }
+
+          // Guardamos el archivo en la carpeta
+          const extension = tipo === 'image' ? 'jpg' : 'mp4';
+          const nombreArchivo = `regla_${msg.chat.split('@')[0]}_${Date.now()}.${extension}`;
+          const rutaCompleta = path.join(carpetaReglas, nombreArchivo);
+
+          fs.writeFileSync(rutaCompleta, buffer);
+          
+          mediaGuardada = {
+            type: tipo,
+            path: rutaCompleta // ✅ Guardamos la ruta en el disco
+          };
+
+          console.log(`✅ [REGLAS] Archivo descargado y guardado en: ${rutaCompleta}`);
+        } catch (err) {
+          console.error('❌ [REGLAS] Error descargando media:', err);
+          return msg.reply('❌ Hubo un error al descargar la imagen/video. Intenta de nuevo.');
+        }
+      }
+
+      // ✅ CÁLCULO DE HORA EN UTC
       const ahora = new Date();
       const fechaActualZona = new Date(ahora.toLocaleString('en-US', { timeZone: zonaDetectada.tz }));
       
@@ -109,10 +132,7 @@ export default {
       const offset = fechaZona.getTime() - fechaUTC.getTime();
       const reglasUTC = new Date(reglasFechaLocal.getTime() - offset);
 
-      console.log(`✅ [REGLAS] Configurada: ${horas}:${minutos.toString().padStart(2, '0')} ${zonaDetectada.emoji}`);
-      console.log(`   → UTC a guardar: ${reglasUTC.toISOString()}`);
-
-      // ✅ GUARDAMOS COMO ARRAY (Como compe)
+      // ✅ GUARDAMOS EN LA BASE DE DATOS
       const configArray = [{
         horaUTC: reglasUTC.toISOString(),
         horaLocal: `${horas.toString().padStart(2, '0')}:${minutos.toString().padStart(2, '0')}`,

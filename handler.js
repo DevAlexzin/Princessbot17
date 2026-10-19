@@ -20,6 +20,31 @@ export default async (sock, msg) => {
   const settings = await db.getSettings(botJid)  
 
   // ============================================================
+  // ✅ CANCELAR RULETA
+  // ============================================================
+  if (msg.text && msg.text.toLowerCase().trim() === 'cancelar') {
+    const estado = global.ruletasActivas?.[msg.chat];
+    
+    if (estado && !estado.cancelado) {
+      estado.cancelado = true;
+      
+      await sock.sendMessage(msg.chat, {
+        text: `⏹️ *Ruleta cancelada*
+
+> ✅ *${estado.usuarioTag}* se salvó de ser eliminado.
+
+> 📊 *Uso:* No se contó en el límite diario.`
+      }, { quoted: msg });
+      
+      delete global.ruletasActivas[msg.chat];
+      return;
+    }
+  }
+  // ============================================================
+  // FIN CANCELAR RULETA
+  // ============================================================
+
+  // ============================================================
   // MANEJADOR DE BOTONES DE GANADORES
   // ============================================================
   if (msg.message?.buttonsResponseMessage) {

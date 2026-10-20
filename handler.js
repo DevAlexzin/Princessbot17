@@ -54,6 +54,7 @@ export default async (sock, msg) => {
       textoPregunta = textoPregunta.replace(/@\d{8,15}/g, '').trim();
 
       if (textoPregunta) {
+        console.log("========================================");
         console.log(`🤖 [IA] Pregunta detectada: ${textoPregunta}`);
 
         // 2. Obtenemos la info que guardó el owner con .setia
@@ -63,23 +64,57 @@ export default async (sock, msg) => {
         const consultaFinal = `Contexto e instrucciones: ${promptGuardado}. Pregunta del usuario: ${textoPregunta}`;
         const urlAPI = `https://api.delirius.online/ia/chatgpt?q=${encodeURIComponent(consultaFinal)}`;
 
-        const res = await fetch(urlAPI);
-        const data = await res.json();
+        console.log(`🌐 [IA] Consultando API...`);
+        
+        const res = await fetch(urlAPI, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+          }
+        });
 
-        // 4. Verificamos la respuesta
-        if (data && data.status && data.result) {
-          await sock.sendMessage(msg.chat, {
-            text: `🤖 *Respuesta:*\n\n${data.result}`,
-          }, { quoted: msg });
-        } else {
-          throw new Error('Respuesta inválida de la API');
+        const textoRespuesta = await res.text();
+
+        // ✅ VERIFICACIÓN 1: ¿La API devolvió HTML en lugar de JSON?
+        if (textoRespuesta.startsWith('<!DOCTYPE') || textoRespuesta.startsWith('<html')) {
+          console.log('⚠️ [IA] La API devolvió HTML en lugar de JSON');
+          return msg.reply('❌ La IA no está disponible. La API está caída o en mantenimiento.');
         }
+
+        // ✅ VERIFICACIÓN 2: ¿El JSON es válido?
+        let json;
+        try {
+          json = JSON.parse(textoRespuesta);
+        } catch (e) {
+          console.error('⚠️ [IA] Error parseando JSON:', textoRespuesta.slice(0, 200));
+          return msg.reply('❌ La IA devolvió una respuesta inválida. Intenta más tarde.');
+        }
+
+        // ✅ VERIFICACIÓN 3: ¿La API devolvió un error interno?
+        if (!json.status && json.message) {
+          console.log('⚠️ [IA] Error de la API:', json.message);
+          return msg.reply(`❌ Error de la IA: ${json.message}`);
+        }
+
+        // ✅ VERIFICACIÓN 4: Buscamos la respuesta en los campos posibles
+        const respuestaIA = json.result || json.response || json.answer || json.data || json.message;
+
+        if (!respuestaIA) {
+          console.log('⚠️ [IA] No se encontró texto en la respuesta:', JSON.stringify(json).slice(0, 200));
+          return msg.reply('❌ La IA no devolvió una respuesta válida. Intenta de nuevo.');
+        }
+
+        // 5. Enviamos la respuesta al chat
+        await sock.sendMessage(msg.chat, {
+          text: `🤖 *Respuesta:*\n\n${respuestaIA}`,
+        }, { quoted: msg });
+
+        console.log('✅ [IA] Respuesta enviada correctamente.');
       }
     } catch (e) {
       console.error("❌ [IA ERROR]:", e.message);
-      await msg.reply('❌ La IA no está disponible en este momento. Intenta más tarde.');
+      await msg.reply('❌ Ocurrió un error al conectar con la IA. Intenta más tarde.');
     }
-    return; // Detenemos el procesamiento para que no intente ejecutar un comando
+    return; // Detenemos el procesamiento
   }
   // ============================================================
   // FIN MANEJADOR DE IA

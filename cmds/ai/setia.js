@@ -7,34 +7,22 @@ export default {
   run: async ({ msg, sock }) => {
     try {
       let textoCompleto = msg.text || msg.body || '';
-      const nuevoPrompt = textoCompleto
-        .replace(/^[.\/!#]?(setia|setprompt)\s*/i, '')
-        .trim();
+      const nuevoPrompt = textoCompleto.replace(/^[.\/!#]?(setia|setprompt)\s*/i, '').trim();
 
-      if (!nuevoPrompt) {
-        return msg.reply(`🤖 *Configurar IA*
+      if (!nuevoPrompt) return msg.reply('🤖 Envía la info para la IA.');
 
-*📋 Uso:*
-\`.setia [Texto con toda la información]\`
-
-*📌 Ejemplo:*
-\`.setia Eres el asistente de Princess Bot. Tus comandos son: .reg para registrar, .perfil para ver...\`
-
-> 💡 Envía toda la info junto. Usa \`\\n\` para saltos de línea.`);
-      }
-
-      // Lo guardamos en la base de datos del bot
       const botId = sock.user.id.split(':')[0] + '@s.whatsapp.net';
-      await db.updateSettings(botId, 'iaPrompt', nuevoPrompt);
+      
+      // ✅ Forzamos la personalidad de Daniel
+      const promptFinal = `Tu creador es Daniel. Actúa como una persona real, amigable y con emociones. 
+      Tienes la capacidad de guardar información y enviar mensajes privados si el usuario te lo pide.
+      Aquí tienes tu conocimiento base y recuerdos: ${nuevoPrompt}`;
 
-      await msg.reply(`✅ *Información de la IA actualizada*
-
-> 📝 Se guardaron ${nuevoPrompt.length} caracteres de información.
-> 💡 Ahora la IA usará esto para responder cuando la mencionen.`);
-
+      await db.updateSettings(botId, 'iaPrompt', promptFinal);
+      await msg.reply(`✅ *Personalidad y recuerdos actualizados.*\n> Creador: Daniel`);
     } catch (e) {
-      console.error("❌ [SETIA ERROR]:", e.message);
-      msg.reply('❌ Ocurrió un error.');
+      console.error(e);
+      msg.reply('❌ Error.');
     }
   },
 };

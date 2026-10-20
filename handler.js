@@ -86,22 +86,37 @@ INSTRUCCIONES ESTRICTAS:
 
         const textoRespuesta = await res.text();
 
+        // ✅ Verificación 1: ¿La API devolvió HTML? (Caída)
         if (textoRespuesta.startsWith('<!DOCTYPE') || textoRespuesta.startsWith('<html')) {
+          console.log('⚠️ [IA] La API devolvió HTML (Caída o mantenimiento)');
           return msg.reply('❌ La IA no está disponible. La API está caída.');
         }
 
+        // ✅ Verificación 2: ¿El JSON es válido?
         let json;
         try {
           json = JSON.parse(textoRespuesta);
         } catch (e) {
+          console.error('⚠️ [IA] Error parseando JSON:', textoRespuesta.slice(0, 200));
           return msg.reply('❌ La IA devolvió una respuesta inválida.');
         }
 
+        // ✅ Verificación 3: ¿La API devolvió error interno?
+        if (!json.status && json.message) {
+          console.log('⚠️ [IA] Error de la API:', json.message);
+          return msg.reply(`❌ Error de la IA: ${json.message}`);
+        }
+
+        // Buscamos la respuesta en los campos posibles
         const respuestaIA = json.result || json.response || json.answer || json.data || json.message;
 
         if (!respuestaIA) {
+          console.log('⚠️ [IA] Respuesta vacía de la API:', JSON.stringify(json).slice(0, 200));
           return msg.reply('❌ La IA no devolvió una respuesta válida.');
         }
+
+        // ✅ LOG PARA VER QUÉ RESPONDIÓ EXACTAMENTE LA IA
+        console.log(`🧠 [IA] Respuesta cruda: ${respuestaIA}`);
 
         // ✅ DETECTAMOS SI QUIERE GUARDAR
         const matchGuardar = respuestaIA.match(/\[GUARDAR:\s*(.+?)\]/s);
@@ -111,6 +126,7 @@ INSTRUCCIONES ESTRICTAS:
           memoria.push(textoAGuardar);
           await db.updateChat(msg.chat, 'iaMemoria', memoria);
           await msg.reply(`🧠 *Princess Bot ha guardado:* "${textoAGuardar}"`);
+          console.log('✅ [IA] Memoria guardada correctamente.');
           return;
         }
 
@@ -123,8 +139,10 @@ INSTRUCCIONES ESTRICTAS:
           try {
             await sock.sendMessage(numeroDestino + '@s.whatsapp.net', { text: mensajeAEnviar });
             await msg.reply(`✅ Mensaje privado enviado a ${numeroDestino}.`);
+            console.log('✅ [IA] Mensaje privado enviado correctamente.');
           } catch (err) {
             await msg.reply(`❌ No pude enviar el mensaje a ${numeroDestino}.`);
+            console.log('❌ [IA] Error al enviar privado:', err.message);
           }
           return;
         }
@@ -139,16 +157,19 @@ INSTRUCCIONES ESTRICTAS:
             text: mensajeMencion, 
             mentions: [numeroMencion + '@s.whatsapp.net'] 
           }, { quoted: msg });
+          console.log('✅ [IA] Mención enviada correctamente.');
           return;
         }
 
         // Si no usó herramientas, responde normal
         await sock.sendMessage(msg.chat, { text: `${respuestaIA}` }, { quoted: msg });
+        console.log('✅ [IA] Respuesta normal enviada correctamente.');
       }
     } catch (e) {
-      console.error("❌ [IA ERROR]:", e.message);
+      console.error("❌ [IA ERROR CRÍTICO]:", e.message);
+      await msg.reply('❌ Ocurrió un error al conectar con la IA.');
     }
-    return; // Detenemos el procesamiento
+    return; // Detenemos el procesamiento para que no intente ejecutar un comando
   }
   // ============================================================
   // FIN MANEJADOR DE IA
@@ -165,27 +186,46 @@ INSTRUCCIONES ESTRICTAS:
     if (buttonId && buttonId.startsWith('ganadores_')) {
       const dia = buttonId.replace('ganadores_', '');
       const emojiDia = {
-        lunes: '🍯', martes: '🍒', miercoles: '🪩', jueves: '👯‍♀️', viernes: '🏹', sabado: '🌈', extras: '✨'
+        lunes: '🍯',
+        martes: '🍒',
+        miercoles: '🪩',
+        jueves: '👯‍♀️',
+        viernes: '🏹',
+        sabado: '🌈',
+        extras: '✨'
       };
 
       const nombreDia = {
-        lunes: 'Lunes', martes: 'Martes', miercoles: 'Miércoles', jueves: 'Jueves', viernes: 'Viernes', sabado: 'Sábado', extras: 'Extras'
+        lunes: 'Lunes',
+        martes: 'Martes',
+        miercoles: 'Miércoles',
+        jueves: 'Jueves',
+        viernes: 'Viernes',
+        sabado: 'Sábado',
+        extras: 'Extras'
       };
 
+      // Recuperamos los datos temporales guardados por el comando
       const temporal = global.ganadoresTemporal?.[chatId];
 
       if (!temporal) {
-        await sock.sendMessage(chatId, { text: '❌ No se encontraron datos para anotar. Vuelve a usar el comando `.ganadores` con los datos.' }, { quoted: msg });
+        await sock.sendMessage(chatId, {
+          text: '❌ No se encontraron datos para anotar. Vuelve a usar el comando `.ganadores` con los datos.'
+        }, { quoted: msg });
         return;
       }
 
+      // Verificamos que no hayan pasado más de 5 minutos
       const tiempoTranscurrido = Date.now() - temporal.timestamp;
       if (tiempoTranscurrido > 5 * 60 * 1000) {
         delete global.ganadoresTemporal[chatId];
-        await sock.sendMessage(chatId, { text: '⏳ Los datos han expirado. Vuelve a usar el comando `.ganadores` con los datos.' }, { quoted: msg });
+        await sock.sendMessage(chatId, {
+          text: '⏳ Los datos han expirado. Vuelve a usar el comando `.ganadores` con los datos.'
+        }, { quoted: msg });
         return;
       }
 
+      // Guardamos en la base de datos
       const ahora = new Date();
       const año = ahora.getFullYear();
       const inicioAño = new Date(año, 0, 1);
@@ -194,8 +234,11 @@ INSTRUCCIONES ESTRICTAS:
 
       const chatDataGanadores = await db.getChat(chatId);
       const dbKey = `ganadores_semana_${año}_${semana}`;
-      let ganadores = chatDataGanadores[dbKey] || { lunes: [], martes: [], miercoles: [], jueves: [], viernes: [], sabado: [], extras: [] };
+      let ganadores = chatDataGanadores[dbKey] || {
+        lunes: [], martes: [], miercoles: [], jueves: [], viernes: [], sabado: [], extras: []
+      };
 
+      // ✅ VALIDACIÓN EXTRA: Verificar cuántas veces ha ganado esta semana
       let vecesGanadas = 0;
       for (const key of ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'extras']) {
         const items = ganadores[key] || [];
@@ -204,16 +247,37 @@ INSTRUCCIONES ESTRICTAS:
 
       if (vecesGanadas >= 2) {
         delete global.ganadoresTemporal[chatId];
-        await sock.sendMessage(chatId, { text: `⚠️ *Este número ya ganó 2 veces esta semana.*\n\n> 📱 Número: ${temporal.numero}\n> 👤 Nombre: ${temporal.nombre}\n\n*No puede ganar más de 2 veces por semana.*` }, { quoted: msg });
+        await sock.sendMessage(chatId, {
+          text: `⚠️ *Este número ya ganó 2 veces esta semana.*\n\n> 📱 Número: ${temporal.numero}\n> 👤 Nombre: ${temporal.nombre}\n\n*No puede ganar más de 2 veces por semana.*`
+        }, { quoted: msg });
         return;
       }
 
-      ganadores[dia].push({ numero: temporal.numero, premio: temporal.premio, nombre: temporal.nombre, fecha: ahora.toISOString() });
+      // Agregamos al día correspondiente
+      ganadores[dia].push({
+        numero: temporal.numero,
+        premio: temporal.premio,
+        nombre: temporal.nombre,
+        fecha: ahora.toISOString()
+      });
+
       await db.updateChat(chatId, dbKey, ganadores);
+
+      // Limpiamos los datos temporales
       delete global.ganadoresTemporal[chatId];
 
-      await sock.sendMessage(chatId, { text: `✅ *Ganador anotado correctamente*\n\n> 📱 Número: ${temporal.numero}\n> 🎁 Premio: ${temporal.premio}\n> 👤 Nombre: ${temporal.nombre}\n> 📅 Día: ${emojiDia[dia]} ${nombreDia[dia]}\n> 📊 Veces ganadas esta semana: ${vecesGanadas + 1}/2` }, { quoted: msg });
-      return;
+      // Confirmamos el registro
+      await sock.sendMessage(chatId, {
+        text: `✅ *Ganador anotado correctamente*
+
+> 📱 Número: ${temporal.numero}
+> 🎁 Premio: ${temporal.premio}
+> 👤 Nombre: ${temporal.nombre}
+> 📅 Día: ${emojiDia[dia]} ${nombreDia[dia]}
+> 📊 Veces ganadas esta semana: ${vecesGanadas + 1}/2`
+      }, { quoted: msg });
+      
+      return; // Detenemos el procesamiento
     }
   }
   // ============================================================

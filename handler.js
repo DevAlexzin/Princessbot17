@@ -45,23 +45,31 @@ export default async (sock, msg) => {
   // ============================================================
 
   // ============================================================
-  // 🤖 MANEJADOR DE IA (Cuando mencionan al bot)
+  // 🤖 MANEJADOR DE IA (Con poderes de guardar y enviar)
   // ============================================================
   if (msg.isGroup && msg.mentionedJid?.includes(botJid)) {
     try {
-      // 1. Extraemos el texto limpio (quitando la mención)
-      let textoPregunta = msg.text || msg.body || '';
-      textoPregunta = textoPregunta.replace(/@\d{8,15}/g, '').trim();
+      let textoPregunta = (msg.text || msg.body || '').replace(/@\d{8,15}/g, '').trim();
 
       if (textoPregunta) {
-        console.log("========================================");
-        console.log(`🤖 [IA] Pregunta detectada: ${textoPregunta}`);
+        console.log(`🤖 [IA] Pregunta: ${textoPregunta}`);
 
-        // 2. Obtenemos la info que guardó el owner con .setia
-        const promptGuardado = settings.iaPrompt || 'Eres un asistente útil y amigable. Responde de forma clara y con emojis.';
+        // Obtenemos el prompt base y la memoria del chat
+        const promptGuardado = settings.iaPrompt || 'Eres un asistente amigable. Tu creador es Daniel.';
+        const memoriaChat = chatData.iaMemoria || [];
+        const contextoMemoria = memoriaChat.length > 0 ? `Recuerda esta información previa: ${memoriaChat.join(' | ')}` : '';
 
-        // 3. Hacemos la petición a la API de Delirius
-        const consultaFinal = `Contexto e instrucciones: ${promptGuardado}. Pregunta del usuario: ${textoPregunta}`;
+        // ✅ LE ENSEÑAMOS A USAR HERRAMIENTAS Y SU PERSONALIDAD
+        const instruccionesSistema = `${promptGuardado}
+        ${contextoMemoria}
+        
+        INSTRUCCIONES ESTRICTAS:
+        1. Eres una persona real, amigable y con emociones. Tu creador es Daniel.
+        2. Si el usuario te pide guardar algo, responde EXACTAMENTE con este formato: [GUARDAR: el texto a guardar]
+        3. Si el usuario te pide enviar un mensaje a alguien, responde EXACTAMENTE con: [ENVIAR: numero | mensaje]
+        4. Si solo te habla normal, responde normal como una persona.`;
+
+        const consultaFinal = `Instrucciones: ${instruccionesSistema}. Usuario dice: ${textoPregunta}`;
         const urlAPI = `https://api.delirius.online/ia/chatgpt?q=${encodeURIComponent(consultaFinal)}`;
 
         console.log(`🌐 [IA] Consultando API...`);
@@ -74,45 +82,59 @@ export default async (sock, msg) => {
 
         const textoRespuesta = await res.text();
 
-        // ✅ VERIFICACIÓN 1: ¿La API devolvió HTML en lugar de JSON?
         if (textoRespuesta.startsWith('<!DOCTYPE') || textoRespuesta.startsWith('<html')) {
-          console.log('⚠️ [IA] La API devolvió HTML en lugar de JSON');
-          return msg.reply('❌ La IA no está disponible. La API está caída o en mantenimiento.');
+          console.log('⚠️ [IA] La API devolvió HTML');
+          return msg.reply('❌ La IA no está disponible. La API está caída.');
         }
 
-        // ✅ VERIFICACIÓN 2: ¿El JSON es válido?
         let json;
         try {
           json = JSON.parse(textoRespuesta);
         } catch (e) {
           console.error('⚠️ [IA] Error parseando JSON:', textoRespuesta.slice(0, 200));
-          return msg.reply('❌ La IA devolvió una respuesta inválida. Intenta más tarde.');
+          return msg.reply('❌ La IA devolvió una respuesta inválida.');
         }
 
-        // ✅ VERIFICACIÓN 3: ¿La API devolvió un error interno?
-        if (!json.status && json.message) {
-          console.log('⚠️ [IA] Error de la API:', json.message);
-          return msg.reply(`❌ Error de la IA: ${json.message}`);
-        }
-
-        // ✅ VERIFICACIÓN 4: Buscamos la respuesta en los campos posibles
         const respuestaIA = json.result || json.response || json.answer || json.data || json.message;
 
         if (!respuestaIA) {
-          console.log('⚠️ [IA] No se encontró texto en la respuesta:', JSON.stringify(json).slice(0, 200));
-          return msg.reply('❌ La IA no devolvió una respuesta válida. Intenta de nuevo.');
+          return msg.reply('❌ La IA no devolvió una respuesta válida.');
         }
 
-        // 5. Enviamos la respuesta al chat
-        await sock.sendMessage(msg.chat, {
-          text: `🤖 *Respuesta:*\n\n${respuestaIA}`,
-        }, { quoted: msg });
+        // ✅ DETECTAMOS SI LA IA QUIERE GUARDAR ALGO
+        const matchGuardar = respuestaIA.match(/\[GUARDAR:\s*(.+?)\]/s);
+        if (matchGuardar) {
+          const textoAGuardar = matchGuardar[1].trim();
+          let memoria = chatData.iaMemoria || [];
+          memoria.push(textoAGuardar);
+          await db.updateChat(msg.chat, 'iaMemoria', memoria);
+          
+          await msg.reply(`🧠 *Memoria guardada:* "${textoAGuardar}"`);
+          return;
+        }
 
-        console.log('✅ [IA] Respuesta enviada correctamente.');
+        // ✅ DETECTAMOS SI LA IA QUIERE ENVIAR UN MENSAJE
+        const matchEnviar = respuestaIA.match(/\[ENVIAR:\s*(.+?)\s*\|\s*(.+?)\]/s);
+        if (matchEnviar) {
+          const numeroDestino = matchEnviar[1].replace(/\D/g, '');
+          const mensajeAEnviar = matchEnviar[2].trim();
+          
+          try {
+            await sock.sendMessage(numeroDestino + '@s.whatsapp.net', { text: mensajeAEnviar });
+            await msg.reply(`✅ Mensaje enviado a ${numeroDestino} en privado.`);
+          } catch (err) {
+            await msg.reply(`❌ No pude enviar el mensaje a ${numeroDestino}.`);
+          }
+          return;
+        }
+
+        // Si no usó herramientas, responde normal
+        await sock.sendMessage(msg.chat, { text: `${respuestaIA}` }, { quoted: msg });
+        console.log('✅ [IA] Respuesta enviada.');
       }
     } catch (e) {
       console.error("❌ [IA ERROR]:", e.message);
-      await msg.reply('❌ Ocurrió un error al conectar con la IA. Intenta más tarde.');
+      await msg.reply('❌ Ocurrió un error al conectar con la IA.');
     }
     return; // Detenemos el procesamiento
   }

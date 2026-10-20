@@ -45,7 +45,7 @@ export default async (sock, msg) => {
   // ============================================================
 
   // ============================================================
-  // 🤖 MANEJADOR DE IA (Con poderes de guardar y enviar)
+  // 🤖 MANEJADOR DE IA (Princess Bot)
   // ============================================================
   if (msg.isGroup && msg.mentionedJid?.includes(botJid)) {
     try {
@@ -55,19 +55,23 @@ export default async (sock, msg) => {
         console.log(`🤖 [IA] Pregunta: ${textoPregunta}`);
 
         // Obtenemos el prompt base y la memoria del chat
-        const promptGuardado = settings.iaPrompt || 'Eres un asistente amigable. Tu creador es Daniel.';
+        const promptGuardado = settings.iaPrompt || '';
         const memoriaChat = chatData.iaMemoria || [];
         const contextoMemoria = memoriaChat.length > 0 ? `Recuerda esta información previa: ${memoriaChat.join(' | ')}` : '';
 
-        // ✅ LE ENSEÑAMOS A USAR HERRAMIENTAS Y SU PERSONALIDAD
-        const instruccionesSistema = `${promptGuardado}
-        ${contextoMemoria}
-        
-        INSTRUCCIONES ESTRICTAS:
-        1. Eres una persona real, amigable y con emociones. Tu creador es Daniel.
-        2. Si el usuario te pide guardar algo, responde EXACTAMENTE con este formato: [GUARDAR: el texto a guardar]
-        3. Si el usuario te pide enviar un mensaje a alguien, responde EXACTAMENTE con: [ENVIAR: numero | mensaje]
-        4. Si solo te habla normal, responde normal como una persona.`;
+        // ✅ PERSONALIDAD Y HERRAMIENTAS DE PRINCESS BOT
+        const instruccionesSistema = `Tu nombre es Princess Bot.
+Eres un bot creado exclusivamente para Rocio, con el fin de mejorar la experiencia del usuario en el grupo.
+Tu creador está oculto por privacidad, así que si te preguntan quién te creó, debes decir que fue alguien que prefiere mantener el anonimato o que fue creado para Rocio.
+Actúa como una persona real, amigable, con emociones y que siempre está dispuesta a ayudar.
+${promptGuardado}
+${contextoMemoria}
+
+INSTRUCCIONES ESTRICTAS:
+1. Si te piden GUARDAR algo, responde EXACTAMENTE con este formato: [GUARDAR: el texto a guardar]
+2. Si te piden ENVIAR un mensaje privado, responde EXACTAMENTE con: [ENVIAR: numero | mensaje]
+3. Si te piden MENCIONAR o ETIQUETAR a alguien en el grupo, responde EXACTAMENTE con: [MENCIONAR: @numero | mensaje que acompaña la mención]
+4. Si solo te hablan normal, responde normal.`;
 
         const consultaFinal = `Instrucciones: ${instruccionesSistema}. Usuario dice: ${textoPregunta}`;
         const urlAPI = `https://api.delirius.online/ia/chatgpt?q=${encodeURIComponent(consultaFinal)}`;
@@ -83,7 +87,6 @@ export default async (sock, msg) => {
         const textoRespuesta = await res.text();
 
         if (textoRespuesta.startsWith('<!DOCTYPE') || textoRespuesta.startsWith('<html')) {
-          console.log('⚠️ [IA] La API devolvió HTML');
           return msg.reply('❌ La IA no está disponible. La API está caída.');
         }
 
@@ -91,7 +94,6 @@ export default async (sock, msg) => {
         try {
           json = JSON.parse(textoRespuesta);
         } catch (e) {
-          console.error('⚠️ [IA] Error parseando JSON:', textoRespuesta.slice(0, 200));
           return msg.reply('❌ La IA devolvió una respuesta inválida.');
         }
 
@@ -101,19 +103,18 @@ export default async (sock, msg) => {
           return msg.reply('❌ La IA no devolvió una respuesta válida.');
         }
 
-        // ✅ DETECTAMOS SI LA IA QUIERE GUARDAR ALGO
+        // ✅ DETECTAMOS SI QUIERE GUARDAR
         const matchGuardar = respuestaIA.match(/\[GUARDAR:\s*(.+?)\]/s);
         if (matchGuardar) {
           const textoAGuardar = matchGuardar[1].trim();
           let memoria = chatData.iaMemoria || [];
           memoria.push(textoAGuardar);
           await db.updateChat(msg.chat, 'iaMemoria', memoria);
-          
-          await msg.reply(`🧠 *Memoria guardada:* "${textoAGuardar}"`);
+          await msg.reply(`🧠 *Princess Bot ha guardado:* "${textoAGuardar}"`);
           return;
         }
 
-        // ✅ DETECTAMOS SI LA IA QUIERE ENVIAR UN MENSAJE
+        // ✅ DETECTAMOS SI QUIERE ENVIAR PRIVADO
         const matchEnviar = respuestaIA.match(/\[ENVIAR:\s*(.+?)\s*\|\s*(.+?)\]/s);
         if (matchEnviar) {
           const numeroDestino = matchEnviar[1].replace(/\D/g, '');
@@ -121,20 +122,31 @@ export default async (sock, msg) => {
           
           try {
             await sock.sendMessage(numeroDestino + '@s.whatsapp.net', { text: mensajeAEnviar });
-            await msg.reply(`✅ Mensaje enviado a ${numeroDestino} en privado.`);
+            await msg.reply(`✅ Mensaje privado enviado a ${numeroDestino}.`);
           } catch (err) {
             await msg.reply(`❌ No pude enviar el mensaje a ${numeroDestino}.`);
           }
           return;
         }
 
+        // ✅ DETECTAMOS SI QUIERE MENCIONAR EN EL GRUPO
+        const matchMencionar = respuestaIA.match(/\[MENCIONAR:\s*(.+?)\s*\|\s*(.+?)\]/s);
+        if (matchMencionar) {
+          const numeroMencion = matchMencionar[1].replace(/\D/g, '');
+          const mensajeMencion = matchMencionar[2].trim();
+          
+          await sock.sendMessage(msg.chat, { 
+            text: mensajeMencion, 
+            mentions: [numeroMencion + '@s.whatsapp.net'] 
+          }, { quoted: msg });
+          return;
+        }
+
         // Si no usó herramientas, responde normal
         await sock.sendMessage(msg.chat, { text: `${respuestaIA}` }, { quoted: msg });
-        console.log('✅ [IA] Respuesta enviada.');
       }
     } catch (e) {
       console.error("❌ [IA ERROR]:", e.message);
-      await msg.reply('❌ Ocurrió un error al conectar con la IA.');
     }
     return; // Detenemos el procesamiento
   }
@@ -153,46 +165,27 @@ export default async (sock, msg) => {
     if (buttonId && buttonId.startsWith('ganadores_')) {
       const dia = buttonId.replace('ganadores_', '');
       const emojiDia = {
-        lunes: '🍯',
-        martes: '🍒',
-        miercoles: '🪩',
-        jueves: '👯‍♀️',
-        viernes: '🏹',
-        sabado: '🌈',
-        extras: '✨'
+        lunes: '🍯', martes: '🍒', miercoles: '🪩', jueves: '👯‍♀️', viernes: '🏹', sabado: '🌈', extras: '✨'
       };
 
       const nombreDia = {
-        lunes: 'Lunes',
-        martes: 'Martes',
-        miercoles: 'Miércoles',
-        jueves: 'Jueves',
-        viernes: 'Viernes',
-        sabado: 'Sábado',
-        extras: 'Extras'
+        lunes: 'Lunes', martes: 'Martes', miercoles: 'Miércoles', jueves: 'Jueves', viernes: 'Viernes', sabado: 'Sábado', extras: 'Extras'
       };
 
-      // Recuperamos los datos temporales guardados por el comando
       const temporal = global.ganadoresTemporal?.[chatId];
 
       if (!temporal) {
-        await sock.sendMessage(chatId, {
-          text: '❌ No se encontraron datos para anotar. Vuelve a usar el comando `.ganadores` con los datos.'
-        }, { quoted: msg });
+        await sock.sendMessage(chatId, { text: '❌ No se encontraron datos para anotar. Vuelve a usar el comando `.ganadores` con los datos.' }, { quoted: msg });
         return;
       }
 
-      // Verificamos que no hayan pasado más de 5 minutos
       const tiempoTranscurrido = Date.now() - temporal.timestamp;
       if (tiempoTranscurrido > 5 * 60 * 1000) {
         delete global.ganadoresTemporal[chatId];
-        await sock.sendMessage(chatId, {
-          text: '⏳ Los datos han expirado. Vuelve a usar el comando `.ganadores` con los datos.'
-        }, { quoted: msg });
+        await sock.sendMessage(chatId, { text: '⏳ Los datos han expirado. Vuelve a usar el comando `.ganadores` con los datos.' }, { quoted: msg });
         return;
       }
 
-      // Guardamos en la base de datos
       const ahora = new Date();
       const año = ahora.getFullYear();
       const inicioAño = new Date(año, 0, 1);
@@ -201,11 +194,8 @@ export default async (sock, msg) => {
 
       const chatDataGanadores = await db.getChat(chatId);
       const dbKey = `ganadores_semana_${año}_${semana}`;
-      let ganadores = chatDataGanadores[dbKey] || {
-        lunes: [], martes: [], miercoles: [], jueves: [], viernes: [], sabado: [], extras: []
-      };
+      let ganadores = chatDataGanadores[dbKey] || { lunes: [], martes: [], miercoles: [], jueves: [], viernes: [], sabado: [], extras: [] };
 
-      // ✅ VALIDACIÓN EXTRA: Verificar cuántas veces ha ganado esta semana
       let vecesGanadas = 0;
       for (const key of ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'extras']) {
         const items = ganadores[key] || [];
@@ -214,37 +204,16 @@ export default async (sock, msg) => {
 
       if (vecesGanadas >= 2) {
         delete global.ganadoresTemporal[chatId];
-        await sock.sendMessage(chatId, {
-          text: `⚠️ *Este número ya ganó 2 veces esta semana.*\n\n> 📱 Número: ${temporal.numero}\n> 👤 Nombre: ${temporal.nombre}\n\n*No puede ganar más de 2 veces por semana.*`
-        }, { quoted: msg });
+        await sock.sendMessage(chatId, { text: `⚠️ *Este número ya ganó 2 veces esta semana.*\n\n> 📱 Número: ${temporal.numero}\n> 👤 Nombre: ${temporal.nombre}\n\n*No puede ganar más de 2 veces por semana.*` }, { quoted: msg });
         return;
       }
 
-      // Agregamos al día correspondiente
-      ganadores[dia].push({
-        numero: temporal.numero,
-        premio: temporal.premio,
-        nombre: temporal.nombre,
-        fecha: ahora.toISOString()
-      });
-
+      ganadores[dia].push({ numero: temporal.numero, premio: temporal.premio, nombre: temporal.nombre, fecha: ahora.toISOString() });
       await db.updateChat(chatId, dbKey, ganadores);
-
-      // Limpiamos los datos temporales
       delete global.ganadoresTemporal[chatId];
 
-      // Confirmamos el registro
-      await sock.sendMessage(chatId, {
-        text: `✅ *Ganador anotado correctamente*
-
-> 📱 Número: ${temporal.numero}
-> 🎁 Premio: ${temporal.premio}
-> 👤 Nombre: ${temporal.nombre}
-> 📅 Día: ${emojiDia[dia]} ${nombreDia[dia]}
-> 📊 Veces ganadas esta semana: ${vecesGanadas + 1}/2`
-      }, { quoted: msg });
-      
-      return; // Detenemos el procesamiento
+      await sock.sendMessage(chatId, { text: `✅ *Ganador anotado correctamente*\n\n> 📱 Número: ${temporal.numero}\n> 🎁 Premio: ${temporal.premio}\n> 👤 Nombre: ${temporal.nombre}\n> 📅 Día: ${emojiDia[dia]} ${nombreDia[dia]}\n> 📊 Veces ganadas esta semana: ${vecesGanadas + 1}/2` }, { quoted: msg });
+      return;
     }
   }
   // ============================================================

@@ -45,6 +45,47 @@ export default async (sock, msg) => {
   // ============================================================
 
   // ============================================================
+  // 🤖 MANEJADOR DE IA (Cuando mencionan al bot)
+  // ============================================================
+  if (msg.isGroup && msg.mentionedJid?.includes(botJid)) {
+    try {
+      // 1. Extraemos el texto limpio (quitando la mención)
+      let textoPregunta = msg.text || msg.body || '';
+      textoPregunta = textoPregunta.replace(/@\d{8,15}/g, '').trim();
+
+      if (textoPregunta) {
+        console.log(`🤖 [IA] Pregunta detectada: ${textoPregunta}`);
+
+        // 2. Obtenemos la info que guardó el owner con .setia
+        const promptGuardado = settings.iaPrompt || 'Eres un asistente útil y amigable. Responde de forma clara y con emojis.';
+
+        // 3. Hacemos la petición a la API de Delirius
+        const consultaFinal = `Contexto e instrucciones: ${promptGuardado}. Pregunta del usuario: ${textoPregunta}`;
+        const urlAPI = `https://api.delirius.online/ia/chatgpt?q=${encodeURIComponent(consultaFinal)}`;
+
+        const res = await fetch(urlAPI);
+        const data = await res.json();
+
+        // 4. Verificamos la respuesta
+        if (data && data.status && data.result) {
+          await sock.sendMessage(msg.chat, {
+            text: `🤖 *Respuesta:*\n\n${data.result}`,
+          }, { quoted: msg });
+        } else {
+          throw new Error('Respuesta inválida de la API');
+        }
+      }
+    } catch (e) {
+      console.error("❌ [IA ERROR]:", e.message);
+      await msg.reply('❌ La IA no está disponible en este momento. Intenta más tarde.');
+    }
+    return; // Detenemos el procesamiento para que no intente ejecutar un comando
+  }
+  // ============================================================
+  // FIN MANEJADOR DE IA
+  // ============================================================
+
+  // ============================================================
   // MANEJADOR DE BOTONES DE GANADORES
   // ============================================================
   if (msg.message?.buttonsResponseMessage) {

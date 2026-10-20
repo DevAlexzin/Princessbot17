@@ -59,19 +59,27 @@ export default async (sock, msg) => {
         const memoriaChat = chatData.iaMemoria || [];
         const contextoMemoria = memoriaChat.length > 0 ? `Recuerda esta información previa: ${memoriaChat.join(' | ')}` : '';
 
-        // ✅ PERSONALIDAD Y HERRAMIENTAS DE PRINCESS BOT
+        // ✅ Capturamos las menciones del mensaje del usuario (para cuando pide etiquetar)
+        const mencionesUsuario = msg.mentionedJid?.filter(jid => jid !== botJid) || [];
+        const textoMenciones = mencionesUsuario.length > 0 
+          ? `El usuario mencionó a estos números: ${mencionesUsuario.map(j => j.split('@')[0]).join(', ')}` 
+          : 'El usuario no mencionó a nadie más.';
+
+        // ✅ PERSONALIDAD Y HERRAMIENTAS CORREGIDAS
         const instruccionesSistema = `Tu nombre es Princess Bot.
-Eres un bot creado exclusivamente para Rocio, con el fin de mejorar la experiencia del usuario en el grupo.
-Tu creador está oculto por privacidad, así que si te preguntan quién te creó, debes decir que fue alguien que prefiere mantener el anonimato o que fue creado para Rocio.
-Actúa como una persona real, amigable, con emociones y que siempre está dispuesta a ayudar.
+Fuiste creada para Rocio (ella es la dueña del bot), pero ESTÁS HABLANDO CON: @${sender.split('@')[0]}. No llames "Rocio" al usuario a menos que te lo pida.
+Tu creador está oculto por privacidad.
+Actúa como una persona real, amigable y servicial.
 ${promptGuardado}
 ${contextoMemoria}
+${textoMenciones}
 
 INSTRUCCIONES ESTRICTAS:
-1. Si te piden GUARDAR algo, responde EXACTAMENTE con este formato: [GUARDAR: el texto a guardar]
-2. Si te piden ENVIAR un mensaje privado, responde EXACTAMENTE con: [ENVIAR: numero | mensaje]
-3. Si te piden MENCIONAR o ETIQUETAR a alguien en el grupo, responde EXACTAMENTE con: [MENCIONAR: @numero | mensaje que acompaña la mención]
-4. Si solo te hablan normal, responde normal.`;
+1. Si te piden GUARDAR algo, responde EXACTAMENTE con: [GUARDAR: el texto a guardar]
+2. Si te piden RECORDAR o ENVIAR un mensaje guardado, NO uses [ENVIAR], simplemente escribe el mensaje que guardaste en el chat normal.
+3. Si te piden ETIQUETAR a las personas que mencionaron, responde EXACTAMENTE con: [MENCIONAR: @numero1,@numero2,@numero3,@numero4 | mensaje que acompaña]
+4. Si te piden ENVIAR UN PRIVADO a alguien específico, usa: [ENVIAR: numero | mensaje]
+5. Si solo te hablan normal, responde normal.`;
 
         const consultaFinal = `Instrucciones: ${instruccionesSistema}. Usuario dice: ${textoPregunta}`;
         const urlAPI = `https://api.delirius.online/ia/chatgpt?q=${encodeURIComponent(consultaFinal)}`;
@@ -86,13 +94,11 @@ INSTRUCCIONES ESTRICTAS:
 
         const textoRespuesta = await res.text();
 
-        // ✅ Verificación 1: ¿La API devolvió HTML? (Caída)
         if (textoRespuesta.startsWith('<!DOCTYPE') || textoRespuesta.startsWith('<html')) {
-          console.log('⚠️ [IA] La API devolvió HTML (Caída o mantenimiento)');
+          console.log('⚠️ [IA] La API devolvió HTML (Caída)');
           return msg.reply('❌ La IA no está disponible. La API está caída.');
         }
 
-        // ✅ Verificación 2: ¿El JSON es válido?
         let json;
         try {
           json = JSON.parse(textoRespuesta);
@@ -101,13 +107,6 @@ INSTRUCCIONES ESTRICTAS:
           return msg.reply('❌ La IA devolvió una respuesta inválida.');
         }
 
-        // ✅ Verificación 3: ¿La API devolvió error interno?
-        if (!json.status && json.message) {
-          console.log('⚠️ [IA] Error de la API:', json.message);
-          return msg.reply(`❌ Error de la IA: ${json.message}`);
-        }
-
-        // Buscamos la respuesta en los campos posibles
         const respuestaIA = json.result || json.response || json.answer || json.data || json.message;
 
         if (!respuestaIA) {
@@ -115,7 +114,6 @@ INSTRUCCIONES ESTRICTAS:
           return msg.reply('❌ La IA no devolvió una respuesta válida.');
         }
 
-        // ✅ LOG PARA VER QUÉ RESPONDIÓ EXACTAMENTE LA IA
         console.log(`🧠 [IA] Respuesta cruda: ${respuestaIA}`);
 
         // ✅ DETECTAMOS SI QUIERE GUARDAR
@@ -147,21 +145,32 @@ INSTRUCCIONES ESTRICTAS:
           return;
         }
 
-        // ✅ DETECTAMOS SI QUIERE MENCIONAR EN EL GRUPO
+        // ✅ DETECTAMOS SI QUIERE MENCIONAR EN EL GRUPO (Soporta múltiples menciones)
         const matchMencionar = respuestaIA.match(/\[MENCIONAR:\s*(.+?)\s*\|\s*(.+?)\]/s);
         if (matchMencionar) {
-          const numeroMencion = matchMencionar[1].replace(/\D/g, '');
+          const numerosTexto = matchMencionar[1];
           const mensajeMencion = matchMencionar[2].trim();
           
-          await sock.sendMessage(msg.chat, { 
-            text: mensajeMencion, 
-            mentions: [numeroMencion + '@s.whatsapp.net'] 
-          }, { quoted: msg });
-          console.log('✅ [IA] Mención enviada correctamente.');
+          // Separamos los números por coma (ej: @549111, @549222)
+          const numerosArray = numerosTexto.split(',')
+            .map(num => num.replace(/\D/g, ''))
+            .filter(num => num.length > 0);
+
+          if (numerosArray.length > 0) {
+            const mentionsFinal = numerosArray.map(num => num + '@s.whatsapp.net');
+            await sock.sendMessage(msg.chat, { 
+              text: mensajeMencion, 
+              mentions: mentionsFinal 
+            }, { quoted: msg });
+            console.log('✅ [IA] Menciones enviadas correctamente.');
+          } else {
+            // Si falló la extracción, enviamos texto normal
+            await sock.sendMessage(msg.chat, { text: respuestaIA }, { quoted: msg });
+          }
           return;
         }
 
-        // Si no usó herramientas, responde normal
+        // Si no usó herramientas, responde normal (Aquí cae si decide "recordar" un mensaje)
         await sock.sendMessage(msg.chat, { text: `${respuestaIA}` }, { quoted: msg });
         console.log('✅ [IA] Respuesta normal enviada correctamente.');
       }
@@ -169,7 +178,7 @@ INSTRUCCIONES ESTRICTAS:
       console.error("❌ [IA ERROR CRÍTICO]:", e.message);
       await msg.reply('❌ Ocurrió un error al conectar con la IA.');
     }
-    return; // Detenemos el procesamiento para que no intente ejecutar un comando
+    return; // Detenemos el procesamiento
   }
   // ============================================================
   // FIN MANEJADOR DE IA

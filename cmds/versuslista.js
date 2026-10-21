@@ -19,9 +19,7 @@ export default {
 \`.versusg Nombre1/Nombre2/Nombre3/Nombre4/Modo/Hora Zona\`
 
 *📌 Ejemplo:*
-\`.versusg Daniel/ro/emy/Sof/500/18 ARG\`
-
-> ⚠️ Debes poner 4 jugadoras, el modo y la hora con la zona (arg, peru, col, etc).`);
+\`.versusg Daniel/ro/emy/Sof/500/18 ARG\``);
       }
 
       const partes = texto.split('/').map(p => p.trim());
@@ -34,7 +32,6 @@ export default {
       const modo = partes[4];
       const horaTexto = partes[5];
 
-      // ✅ DETECCIÓN DE HORA Y ZONA
       const zonas = {
         arg: { nombre: 'Argentina', tz: 'America/Argentina/Buenos_Aires', emoji: '🇦🇷' },
         peru: { nombre: 'Perú', tz: 'America/Lima', emoji: '🇵🇪' },
@@ -73,9 +70,9 @@ export default {
       const emojiDia = { 0: '✨', 1: '💙', 2: '🌊', 3: '🫐', 4: '🪽', 5: '🌀', 6: '✨' };
       const emojiHoy = emojiDia[fechaActualZona.getDay()];
 
-      // ✅ 1. GUARDAR EN LA LISTA DE VERSUS DEL DÍA
+      // ✅ GUARDAR EN LA LISTA DEL DÍA
       const chatData = await db.getChat(msg.chat);
-      const dbKeyVs = `versus_hoy_${fechaFormateada}`;
+      const dbKeyVs = `versus_dia_${fechaFormateada}`; // Cambiado a versus_dia_
       let versusHoy = chatData[dbKeyVs] || [];
       
       versusHoy.push({
@@ -88,7 +85,7 @@ export default {
       
       await db.updateChat(msg.chat, dbKeyVs, versusHoy);
 
-      // ✅ 2. CONECTAR CON EL PARTI (+1 CORAZÓN A CADA UNA)
+      // ✅ CONECTAR CON EL PARTI (+1 CORAZÓN A CADA UNA)
       const año = ahora.getFullYear();
       const inicioAño = new Date(año, 0, 1);
       const diasTranscurridos = Math.floor((ahora - inicioAño) / 86400000);
@@ -118,16 +115,13 @@ export default {
       
       await db.updateChat(msg.chat, dbKeyParti, registrosParti);
 
-      // ✅ 3. ARMAR LA LISTA CON EL DISEÑO SOLICITADO
+      // ✅ MOSTRAR LA LISTA DEL DÍA ACTUAL
       const versusOrdenados = versusHoy.sort((a, b) => parseInt(a.hora) - parseInt(b.hora));
-
-      let mensajeLista = '';
+      let mensajeLista = `📅 *Versus del ${fechaFormateada}*\n\n`;
 
       for (const v of versusOrdenados) {
         let listaJugadoras = '';
-        for (const j of v.jugadoras) {
-          listaJugadoras += `𐔌🌈𐦯 ${j}\n`;
-        }
+        for (const j of v.jugadoras) listaJugadoras += `𐔌🌈𐦯 ${j}\n`;
 
         mensajeLista += `┈─˖Ი𐑼⋆🏹 𝗩𝗲𝗿𝘀𝘂𝘀 𝗴𝗮𝗻𝗮𝗱𝗼\n\n`;
         mensajeLista += `✮ ╴╴╴╴✮ ╴╴╴╴✮ ╴╴╴╴✮ \n\n`;

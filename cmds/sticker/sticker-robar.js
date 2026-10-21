@@ -1,5 +1,4 @@
-
-import { addExif } from '../lib/sticker.js'
+import { addExif } from '../../lib/sticker.js'
 
 export default {
   command: ['robars'],
@@ -8,6 +7,7 @@ export default {
 
   run: async ({ msg, sock }) => {
     try {
+      // 🔍 Verificar que el mensaje sea una respuesta
       const quoted = msg.quoted
 
       if (!quoted) {
@@ -18,6 +18,7 @@ export default {
         )
       }
 
+      // 🔍 Verificar que sea un sticker WebP
       const mime = quoted.mimetype || quoted.msg?.mimetype || ''
 
       if (!/webp/i.test(mime)) {
@@ -28,6 +29,7 @@ export default {
         )
       }
 
+      // 📥 Descargar el sticker citado
       let img
 
       if (typeof quoted.download === 'function') {
@@ -44,12 +46,20 @@ export default {
         )
       }
 
-      const rawName = msg.pushName || msg.senderName || 'Usuario'
+      // 📝 Obtener y limpiar el nombre del usuario
+      const rawName =
+        msg.pushName ||
+        msg.senderName ||
+        'Usuario'
+
       const packname = rawName
         .replace(/[^\p{L}\p{N}\s]/gu, '')
         .trim() || 'Usuario'
 
+      // 🔹 Autor vacío
       const author = 'Oculto por privacidad'
+
+      // 🛠️ Añadir metadatos al sticker
       const sticker = await addExif(img, packname, author)
 
       if (!sticker) {
@@ -60,14 +70,17 @@ export default {
         )
       }
 
+      // 📤 Enviar el sticker
       await sock.sendMessage(
         msg.chat,
-        { sticker },
+        {
+          sticker: sticker
+        },
         { quoted: msg }
       )
 
     } catch (e) {
-      console.error('❌ [ERROR] Comando robars:', e)
+      console.error('❌ [ERROR] Comando robar:', e)
 
       await sock.sendMessage(
         msg.chat,

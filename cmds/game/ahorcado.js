@@ -10,17 +10,12 @@ const palabras = [
 ];
 
 const intentosMaximos = 6;
-global.ahorcado = global.ahorcado || {};
 
-function normalizar(str) {
+export function normalizar(str) {
     return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
 
-function elegirPalabraAleatoria() {
-    return palabras[Math.floor(Math.random() * palabras.length)].toLowerCase();
-}
-
-function ocultarPalabra(palabra, letrasAdivinadas) {
+export function ocultarPalabra(palabra, letrasAdivinadas) {
     let salida = "";
     for (const letra of palabra) {
         salida += letrasAdivinadas.includes(letra) ? letra + " " : "_ ";
@@ -30,36 +25,12 @@ function ocultarPalabra(palabra, letrasAdivinadas) {
 
 export function mostrarAhorcado(intentos) {
     const estados = [
-` ____ 
- |  |
- |  O
- | /|\\
-_|_`,
-` ____ 
- |  |
- |  O
- | /|\\
- |`,
-` ____ 
- |  |
- |  O
- | /|
- |`,
-` ____ 
- |  |
- |  O
- | /
- |`,
-` ____ 
- |  |
- |  O
- |
- |`,
-` ____ 
- |  |
- |
- |
- |`
+` ____ \n |  |\n |  O\n | /|\\\n_|_`,
+` ____ \n |  |\n |  O\n | /|\\\n |`,
+` ____ \n |  |\n |  O\n | /|\n |`,
+` ____ \n |  |\n |  O\n | /\n |`,
+` ____ \n |  |\n |  O\n |\n |`,
+` ____ \n |  |\n |\n |\n |`
     ];
     return estados[intentosMaximos - intentos];
 }
@@ -74,15 +45,16 @@ export default {
 
       const sender = msg.sender;
 
-      if (global.ahorcado[sender]) {
+      if (global.ahorcado?.[sender]) {
         return msg.reply("⚠️ Ya tienes un juego en curso. Termínalo antes de iniciar otro.");
       }
 
-      const palabra = elegirPalabraAleatoria();
+      const palabra = palabras[Math.floor(Math.random() * palabras.length)].toLowerCase();
       const letrasAdivinadas = [];
       const intentos = intentosMaximos;
       const mensaje = ocultarPalabra(palabra, letrasAdivinadas);
 
+      global.ahorcado = global.ahorcado || {};
       global.ahorcado[sender] = { palabra, letrasAdivinadas, intentos };
 
       await sock.sendMessage(msg.chat, {

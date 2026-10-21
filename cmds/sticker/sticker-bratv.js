@@ -1,4 +1,3 @@
-
 import axios from 'axios'
 import fs from 'fs'
 import { exec } from 'child_process'
@@ -41,13 +40,11 @@ export default {
     let webp
 
     try {
-      // 📝 Obtener texto escrito o mensaje citado
-      const texto = (
-        msg.quoted?.text ||
-        msg.text ||
-        msg.body ||
-        ''
-      ).trim()
+      // ✅ SOLUCIÓN: Quitamos el comando (.bratv) del texto para que no salga en el sticker
+      let textoOriginal = msg.quoted?.text || msg.text || msg.body || '';
+      const texto = textoOriginal
+        .replace(/^[.\/!#]?(bratv|bratvid)\s*/i, '')
+        .trim();
 
       if (!texto) {
         return await sock.sendMessage(

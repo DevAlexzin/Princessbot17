@@ -25,31 +25,31 @@ export default {
         return msg.reply('⚠️ *No hay participaciones anotadas esta semana.*\n\n> Usa `.parti Nombre 💙` para anotarte.');
       }
 
-      // 2. Construimos la lista con el diseño que pediste
+      // 2. Construimos la lista con el diseño de Princess Bot
       let listaParticipantes = '';
       for (const reg of registros) {
         const corazones = reg.corazones.length > 0
           ? reg.corazones.join(' ')
           : '⏳';
 
-        listaParticipantes += `ᯓ★ .ᐟ ${reg.nombre} ║ ${corazones}\n`;
+        listaParticipantes += `┈ꕤ // ${reg.nombre} ║ ${corazones}\n`;
       }
 
-      const participacionMsg = `ˑ 𓈒 𐔌 🫐𝗣𝗮𝗿𝘁𝗶𝗰𝗶𝗽𝗮𝗰𝗶𝗼𝗻 𝘀𝗲𝗺𝗮𝗻𝗮𝗹  ͡꒱ ۫
+      // 3. Armamos el mensaje con los emojis exactos de Princess
+      const participacionMsg = `‧₊ ᵎᵎ 𖤓🏹 𝗣𝗮𝗿𝘁𝗶𝗰𝗶𝗽𝗮𝗰𝗶𝗼𝗻 𝘀𝗲𝗺𝗮𝗻𝗮𝗹
+ꕤ ╴╴╴╴ꕤ ╴╴╴╴ꕤ ╴╴╴╴╴ꕤ
 
-⊹₊˚‧︵‿₊୨ 𝐵𝑜𝑟𝑛 𝑡𝑜 𝑑𝑖𝑒. ୧₊‿︵‧˚₊⊹
-
- Mvρ: 👑
- Pᥲrtιᥴιρᥲᥴιoᥒ :
-𝗟💙/𝗠🌊/𝗠🫐/𝗝🪽/𝗩🌀/𝗦✨
+᭝ ᨳଓ ՟  Mvρ 🍒
+᭝ ᨳଓ ՟  Pᥲrtιᥴιρᥲᥴιoᥒ
+𝗟💙/𝗠🩷/𝗠💜/𝗝💛/𝗩💚/𝗦❤️
 
 ⌢.⌢.⌢.꒰⌢୨୧⌢꒱.⌢.⌢.⌢
 
-𑣲⋆࣪ ִֶָ 𝙄𝙉𝙏𝙀𝙂𝙍𝘼𝙉𝙏𝙀𝙎 
+─˖Ი𐑼⋆˚𝑷𝒓𝒊𝒏𝒄𝒆𝒔𝒊𝒕𝒂𝒔
 ${listaParticipantes}
 > *Total:* ${registros.length}`;
 
-      // 3. Enviamos el mensaje
+      // 4. Enviamos el mensaje
       await sock.sendMessage(msg.chat, { text: participacionMsg.trim() }, { quoted: msg });
 
     } catch (e) {

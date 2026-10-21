@@ -27,35 +27,30 @@ export default {
 
       const chatData = await db.getChat(msg.chat);
       
-      // ✅ OPCIÓN 1: BORRAR SOLO EL DÍA DE HOY
+      // ✅ BORRAR SOLO HOY
       if (texto === 'hoy' || texto === 'dia' || texto === 'today') {
-        // Calculamos la fecha de hoy en la zona del servidor (o forzamos una)
         const ahora = new Date();
         const dia = ahora.getDate().toString().padStart(2, '0');
         const mes = (ahora.getMonth() + 1).toString().padStart(2, '0');
         const fechaFormateada = `${dia}-${mes}`;
         
-        const dbKeyVs = `versus_hoy_${fechaFormateada}`;
-        
-        // Verificamos si hay algo que borrar
+        const dbKeyVs = `versus_dia_${fechaFormateada}`;
         const versusHoy = chatData[dbKeyVs] || [];
+        
         if (versusHoy.length === 0) {
           return msg.reply(`⚠️ No hay versus registrados para el día de hoy (${fechaFormateada}).`);
         }
 
-        // Lo borramos (lo seteamos como un array vacío)
         await db.updateChat(msg.chat, dbKeyVs, []);
-
         return msg.reply(`✅ *Lista de versus de hoy eliminada*\n\n> Se borraron *${versusHoy.length}* versus registrados hoy (${fechaFormateada}).`);
       }
 
-      // ✅ OPCIÓN 2: BORRAR TODO EL HISTORIAL
+      // ✅ BORRAR TODO EL HISTORIAL
       if (texto === 'all' || texto === 'todo' || texto === 'historial') {
         let borrados = 0;
         
-        // Recorremos todas las claves del chat buscando las de versus
         for (const key of Object.keys(chatData)) {
-          if (key.startsWith('versus_hoy_')) {
+          if (key.startsWith('versus_dia_')) {
             await db.updateChat(msg.chat, key, []);
             borrados++;
           }

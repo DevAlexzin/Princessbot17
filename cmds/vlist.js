@@ -9,12 +9,9 @@ export default {
       if (!msg.isGroup) return msg.reply('《✤》 Este comando solo funciona en grupos.');
 
       let textoCompleto = msg.text || msg.body || '';
-      const texto = textoCompleto.replace(/^[.\/!#]?(vlist|versuslist|listaversus|verversus)\s*/i, '').trim();
+      let fechaBuscada = textoCompleto.replace(/^[.\/!#]?(vlist|versuslist|listaversus|verversus)\s*/i, '').trim();
 
-      const chatData = await db.getChat(msg.chat);
-      
-      // ✅ Si no pone fecha, mostramos la de HOY
-      let fechaBuscada = texto;
+      // Si no pone fecha, buscamos la de hoy
       if (!fechaBuscada) {
         const ahora = new Date();
         const dia = ahora.getDate().toString().padStart(2, '0');
@@ -25,6 +22,7 @@ export default {
       // Normalizamos la fecha (acepta 20-10 o 20/10)
       fechaBuscada = fechaBuscada.replace(/\//g, '-');
 
+      const chatData = await db.getChat(msg.chat);
       const dbKeyVs = `versus_dia_${fechaBuscada}`;
       const versusDia = chatData[dbKeyVs] || [];
 

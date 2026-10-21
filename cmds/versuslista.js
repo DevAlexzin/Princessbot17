@@ -55,7 +55,7 @@ export default {
 
       if (!zonaDetectada) return msg.reply(`❌ Zona no válida. Usa: ${Object.keys(zonas).join(', ')}`);
 
-      // ✅ OBTENER FECHA Y DÍA DE LA SEMANA SEGÚN LA ZONA
+      // ✅ FECHA Y DÍA DE LA SEMANA
       const ahora = new Date();
       const fechaActualZona = new Date(ahora.toLocaleString('en-US', { timeZone: zonaDetectada.tz }));
       const dia = fechaActualZona.getDate().toString().padStart(2, '0');
@@ -63,12 +63,12 @@ export default {
       const fechaFormateada = `${dia}-${mes}`;
       const horaFormateada = `${horas.toString().padStart(2, '0')}:${minutos.toString().padStart(2, '0')}`;
       
-      // ✅ OBTENER EL CORAZÓN DEL DÍA EXACTO EN QUE SE REGISTRA
-      const diaSemana = fechaActualZona.getDay(); // 0=Domingo, 1=Lunes...
-      const emojiDiaMap = { 0: '✨', 1: '💙', 2: '🌊', 3: '🫐', 4: '🪽', 5: '🌀', 6: '✨' };
+      // ✅ EMOJIS DEL BOT PRINCESS
+      const diaSemana = fechaActualZona.getDay();
+      const emojiDiaMap = { 0: '✨', 1: '💙', 2: '🩷', 3: '💜', 4: '💛', 5: '💚', 6: '❤️' };
       const emojiHoy = emojiDiaMap[diaSemana];
 
-      // ✅ GUARDAR EN LA LISTA DEL DÍA
+      // ✅ GUARDAR EN LISTA DEL DÍA
       const chatData = await db.getChat(msg.chat);
       const dbKeyVs = `versus_dia_${fechaFormateada}`;
       let versusHoy = chatData[dbKeyVs] || [];
@@ -84,7 +84,7 @@ export default {
       
       await db.updateChat(msg.chat, dbKeyVs, versusHoy);
 
-      // ✅ CONECTAR CON EL PARTI (+1 CORAZÓN DEL DÍA EXACTO)
+      // ✅ CONECTAR CON PARTI (+1 CORAZÓN DEL DÍA)
       const año = fechaActualZona.getFullYear();
       const inicioAño = new Date(año, 0, 1);
       const diasTranscurridos = Math.floor((fechaActualZona - inicioAño) / 86400000);
@@ -102,7 +102,7 @@ export default {
           personaParti = { nombre: nombreJugadora, corazones: [], fechaRegistro: ahora.toISOString() };
           registrosParti.push(personaParti);
         }
-        personaParti.corazones.push(emojiHoy); // ✅ Se guarda el emoji del día del versus
+        personaParti.corazones.push(emojiHoy);
 
         const perfilKey = `perfil_${nombreKey}`;
         const chatDataActualizado = await db.getChat(msg.chat);
@@ -114,7 +114,7 @@ export default {
       
       await db.updateChat(msg.chat, dbKeyParti, registrosParti);
 
-      // ✅ MOSTRAR LA LISTA DEL DÍA ACTUAL
+      // ✅ MOSTRAR LISTA DEL DÍA
       const versusOrdenados = versusHoy.sort((a, b) => parseInt(a.hora) - parseInt(b.hora));
       let mensajeLista = `📅 *Versus del ${fechaFormateada}*\n\n`;
 

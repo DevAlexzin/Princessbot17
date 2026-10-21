@@ -7,6 +7,19 @@ import path from 'path';
 import gradient from 'gradient-string';
 import { getCachedMeta, setCachedMeta } from '#serialize';
 
+// ✅ Función del dibujo del ahorcado para usarla en el handler
+function mostrarAhorcado(intentos) {
+    const estados = [
+` ____ \n |  |\n |  O\n | /|\\\n_|_`,
+` ____ \n |  |\n |  O\n | /|\\\n |`,
+` ____ \n |  |\n |  O\n | /|\n |`,
+` ____ \n |  |\n |  O\n | /\n |`,
+` ____ \n |  |\n |  O\n |\n |`,
+` ____ \n |  |\n |\n |\n |`
+    ];
+    return estados[6 - intentos];
+}
+
 export default async (sock, msg) => {
 
   if (msg.fromMe && !msg.key.participant && msg.isBot) return;  
@@ -18,6 +31,73 @@ export default async (sock, msg) => {
 
   const chatData = await db.getChat(msg.chat)
   const settings = await db.getSettings(botJid)  
+
+  // ============================================================
+  // 🎮 MANEJADOR DEL AHORCADO (Escucha letras)
+  // ============================================================
+  if (msg.text && !msg.text.startsWith('.') && global.ahorcado?.[msg.sender]) {
+    try {
+      const sender = msg.sender;
+      const juego = global.ahorcado[sender];
+      const texto = msg.text.trim().toLowerCase();
+
+      // Verificamos si es una letra (A-Z)
+      if (/^[a-zñ]$/i.test(texto)) {
+        console.log(`🔍 [AHORCADO] Letra recibida: ${texto}`);
+
+        let letra = texto.normalize("NFD").replace(/[\u0300-\u036f]/g, ""); // Quita acentos
+
+        if (juego.letrasAdivinadas.includes(letra)) {
+          await sock.sendMessage(msg.chat, { text: `❌ Ya intentaste la letra "${letra}".` }, { quoted: msg });
+          return;
+        }
+
+        juego.letrasAdivinadas.push(letra);
+
+        if (!juego.palabra.includes(letra)) {
+          juego.intentos--;
+          console.log(`❌ Letra incorrecta. Quedan ${juego.intentos} intentos.`);
+        }
+
+        // Función para mostrar la palabra oculta
+        let palabraOculta = "";
+        for (const l of juego.palabra) {
+          palabraOculta += juego.letrasAdivinadas.includes(l) ? l + " " : "_ ";
+        }
+        palabraOculta = palabraOculta.trim();
+
+        // Verificar si perdió
+        if (juego.intentos <= 0) {
+          delete global.ahorcado[sender];
+          await sock.sendMessage(msg.chat, { text: `❌ ¡Perdiste! La palabra era: *${juego.palabra}*` }, { quoted: msg });
+          return;
+        }
+
+        // Verificar si ganó
+        if (!palabraOculta.includes("_")) {
+          let exp = Math.floor(Math.random() * 300);
+          if (juego.palabra.length >= 8) exp = Math.floor(Math.random() * 3500);
+          await db.updateUser(sender, 'exp', exp).catch(() => {});
+          delete global.ahorcado[sender];
+          await sock.sendMessage(msg.chat, { text: `🎉 ¡Ganaste! Adivinaste la palabra *${juego.palabra}*\n\nHas ganado: *${exp} Exp*` }, { quoted: msg });
+          return;
+        }
+
+        // Mostrar estado actual
+        let dibujo = mostrarAhorcado(juego.intentos);
+        
+        await sock.sendMessage(msg.chat, {
+          text: `${dibujo}\n\n${palabraOculta}\n\n💡 Letras usadas: ${juego.letrasAdivinadas.join(", ")}\n🎯 Intentos restantes: ${juego.intentos}`
+        }, { quoted: msg });
+        return;
+      }
+    } catch (e) {
+      console.error("❌ [AHORCADO ERROR]:", e.message);
+    }
+  }
+  // ============================================================
+  // FIN MANEJADOR DEL AHORCADO
+  // ============================================================
 
   // ============================================================
   // ✅ CANCELAR RULETA
@@ -45,7 +125,7 @@ export default async (sock, msg) => {
   // ============================================================
 
   // ============================================================
-  // 🤖 MANEJADOR DE IA
+  // 🤖 MANEJADOR DE IA (Princess Bot)
   // ============================================================
   if (msg.isGroup && msg.mentionedJid?.includes(botJid)) {
     try {
@@ -140,14 +220,70 @@ INSTRUCCIONES ESTRICTAS:
     }
     return;
   }
+  // ============================================================
+  // FIN MANEJADOR DE IA
+  // ============================================================
 
   // ============================================================
   // MANEJADOR DE BOTONES DE GANADORES
   // ============================================================
   if (msg.message?.buttonsResponseMessage) {
-    // ... (Todo el código de botones se mantiene igual, no lo toco para no hacerlo más largo) ...
-    // Si necesitas que te lo vuelva a poner completo aquí, avísame, pero para el ahorcado no afecta.
+    const buttonId = msg.message.buttonsResponseMessage.selectedButtonId;
+    const buttonText = msg.message.buttonsResponseMessage.selectedDisplayText;
+    const chatId = msg.key.remoteJid;
+
+    if (buttonId && buttonId.startsWith('ganadores_')) {
+      const dia = buttonId.replace('ganadores_', '');
+      const emojiDia = { lunes: '🍯', martes: '🍒', miercoles: '🪩', jueves: '👯‍♀️', viernes: '🏹', sabado: '🌈', extras: '✨' };
+      const nombreDia = { lunes: 'Lunes', martes: 'Martes', miercoles: 'Miércoles', jueves: 'Jueves', viernes: 'Viernes', sabado: 'Sábado', extras: 'Extras' };
+
+      const temporal = global.ganadoresTemporal?.[chatId];
+
+      if (!temporal) {
+        await sock.sendMessage(chatId, { text: '❌ No se encontraron datos para anotar. Vuelve a usar el comando `.ganadores` con los datos.' }, { quoted: msg });
+        return;
+      }
+
+      const tiempoTranscurrido = Date.now() - temporal.timestamp;
+      if (tiempoTranscurrido > 5 * 60 * 1000) {
+        delete global.ganadoresTemporal[chatId];
+        await sock.sendMessage(chatId, { text: '⏳ Los datos han expirado. Vuelve a usar el comando `.ganadores` con los datos.' }, { quoted: msg });
+        return;
+      }
+
+      const ahora = new Date();
+      const año = ahora.getFullYear();
+      const inicioAño = new Date(año, 0, 1);
+      const diasTranscurridos = Math.floor((ahora - inicioAño) / 86400000);
+      const semana = Math.ceil((diasTranscurridos + inicioAño.getDay() + 1) / 7);
+
+      const chatDataGanadores = await db.getChat(chatId);
+      const dbKey = `ganadores_semana_${año}_${semana}`;
+      let ganadores = chatDataGanadores[dbKey] || { lunes: [], martes: [], miercoles: [], jueves: [], viernes: [], sabado: [], extras: [] };
+
+      let vecesGanadas = 0;
+      for (const key of ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'extras']) {
+        const items = ganadores[key] || [];
+        vecesGanadas += items.filter(item => item.numero === temporal.numero).length;
+      }
+
+      if (vecesGanadas >= 2) {
+        delete global.ganadoresTemporal[chatId];
+        await sock.sendMessage(chatId, { text: `⚠️ *Este número ya ganó 2 veces esta semana.*\n\n> 📱 Número: ${temporal.numero}\n> 👤 Nombre: ${temporal.nombre}\n\n*No puede ganar más de 2 veces por semana.*` }, { quoted: msg });
+        return;
+      }
+
+      ganadores[dia].push({ numero: temporal.numero, premio: temporal.premio, nombre: temporal.nombre, fecha: ahora.toISOString() });
+      await db.updateChat(chatId, dbKey, ganadores);
+      delete global.ganadoresTemporal[chatId];
+
+      await sock.sendMessage(chatId, { text: `✅ *Ganador anotado correctamente*\n\n> 📱 Número: ${temporal.numero}\n> 🎁 Premio: ${temporal.premio}\n> 👤 Nombre: ${temporal.nombre}\n> 📅 Día: ${emojiDia[dia]} ${nombreDia[dia]}\n> 📊 Veces ganadas esta semana: ${vecesGanadas + 1}/2` }, { quoted: msg });
+      return;
+    }
   }
+  // ============================================================
+  // FIN MANEJADOR DE BOTONES
+  // ============================================================
 
   const isOwner = global.owner.map(num => num + '@s.whatsapp.net').includes(sender);
   const isROwner = [botJid, ...(settings.owner ? [settings.owner] : []), ...global.owner.map(num => num + '@s.whatsapp.net')].includes(sender);
@@ -171,8 +307,6 @@ INSTRUCCIONES ESTRICTAS:
 
   Promise.allSettled((global.cmdsExecute ?? []).filter(p => p.type === 'all').map(p => p.fn({ msg, sock, groupMetadata, participants, isAdmins, isBotAdmins, isOwner, __dirname: p.dirname }).catch(e => console.error(chalk.gray(`[ ✿ ] Error all-plugin ${p.key}: ${e.message}`)))));
 
-  // ... (código de estadísticas y base de datos se mantiene igual) ...
-  
   const tf = await db.getChatUser(msg.chat, msg.sender)
   const to = new Date().toLocaleDateString('es-CO', { timeZone: 'America/Bogota', year: 'numeric', month: '2-digit', day: '2-digit' }).split('/').reverse().join('-') 
 
@@ -216,19 +350,16 @@ INSTRUCCIONES ESTRICTAS:
   }) : typeof pluginPrefix === 'string' ? [[new RegExp(strRegex(pluginPrefix)).exec(msg.text), new RegExp(strRegex(pluginPrefix))]] : [[null, null]];
   let match = matchs.find(p => p[0]) || null;
 
-  // ✅ ¡AQUÍ ESTÁ EL CAMBIO! MOVEMOS LOS BEFORE-PLUGINS ANTES DEL IF (!MATCH) RETURN
-  
   for (const p of (global.cmdsExecute ?? [])) {
     if (p.type !== 'before') continue;
     try {
-      if (await p.fn({ msg, sock, match, groupMetadata, participants, isAdmins, isBotAdmins, isOwner, __dirname: p.dirname })) return; // ✅ Si un before-plugin lo procesa, detenemos todo
+      if (await p.fn({ msg, sock, match, groupMetadata, participants, isAdmins, isBotAdmins, isOwner, __dirname: p.dirname })) return;
     } catch (e) {
       console.error(chalk.gray(`[ ✿ ] Error before-plugin ${p.key}: ${e.message}`));
     }
   }
 
-  if (!match) return; // ✅ Esto va DESPUÉS, si es un mensaje sin prefijo y ningún before-plugin lo procesó, se ignora.
-
+  if (!match) return;
   let usedPrefix = (match[0] || [])[0] || '';
   let args = msg.text.slice(usedPrefix.length).trim().split(" ");
   let command = customCmd ?? (args.shift() || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');

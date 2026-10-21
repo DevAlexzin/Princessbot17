@@ -23,9 +23,8 @@ export default {
       }
 
       const partes = texto.split('/').map(p => p.trim());
-
       if (partes.length < 6) {
-        return msg.reply('❌ *Faltan datos.*\n\nDebes usar el formato:\n`Nombre1/Nombre2/Nombre3/Nombre4/Modo/Hora Zona`\n\n*Ejemplo:* `.versusg Daniel/ro/emy/Sof/500/18 ARG`');
+        return msg.reply('❌ *Faltan datos.*\n\nDebes usar: `Nombre1/Nombre2/Nombre3/Nombre4/Modo/Hora Zona`');
       }
 
       const jugadoras = [partes[0], partes[1], partes[2], partes[3]];
@@ -51,28 +50,27 @@ export default {
       const palabras = horaTexto.toLowerCase().split(/\s+/);
       for (const palabra of palabras) {
         const zonaLimpia = palabra.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-        if (zonas[zonaLimpia]) {
-          zonaDetectada = zonas[zonaLimpia];
-          break;
-        }
+        if (zonas[zonaLimpia]) { zonaDetectada = zonas[zonaLimpia]; break; }
       }
 
       if (!zonaDetectada) return msg.reply(`❌ Zona no válida. Usa: ${Object.keys(zonas).join(', ')}`);
 
-      // ✅ OBTENER LA FECHA AUTOMÁTICAMENTE
+      // ✅ OBTENER FECHA Y DÍA DE LA SEMANA SEGÚN LA ZONA
       const ahora = new Date();
       const fechaActualZona = new Date(ahora.toLocaleString('en-US', { timeZone: zonaDetectada.tz }));
       const dia = fechaActualZona.getDate().toString().padStart(2, '0');
       const mes = (fechaActualZona.getMonth() + 1).toString().padStart(2, '0');
       const fechaFormateada = `${dia}-${mes}`;
       const horaFormateada = `${horas.toString().padStart(2, '0')}:${minutos.toString().padStart(2, '0')}`;
-
-      const emojiDia = { 0: '✨', 1: '💙', 2: '🌊', 3: '🫐', 4: '🪽', 5: '🌀', 6: '✨' };
-      const emojiHoy = emojiDia[fechaActualZona.getDay()];
+      
+      // ✅ OBTENER EL CORAZÓN DEL DÍA EXACTO EN QUE SE REGISTRA
+      const diaSemana = fechaActualZona.getDay(); // 0=Domingo, 1=Lunes...
+      const emojiDiaMap = { 0: '✨', 1: '💙', 2: '🌊', 3: '🫐', 4: '🪽', 5: '🌀', 6: '✨' };
+      const emojiHoy = emojiDiaMap[diaSemana];
 
       // ✅ GUARDAR EN LA LISTA DEL DÍA
       const chatData = await db.getChat(msg.chat);
-      const dbKeyVs = `versus_dia_${fechaFormateada}`; // Cambiado a versus_dia_
+      const dbKeyVs = `versus_dia_${fechaFormateada}`;
       let versusHoy = chatData[dbKeyVs] || [];
       
       versusHoy.push({
@@ -80,15 +78,16 @@ export default {
         zona: zonaDetectada.emoji,
         jugadoras: jugadoras.filter(j => j),
         modo: modo,
-        fecha: fechaFormateada
+        fecha: fechaFormateada,
+        diaSemana: diaSemana
       });
       
       await db.updateChat(msg.chat, dbKeyVs, versusHoy);
 
-      // ✅ CONECTAR CON EL PARTI (+1 CORAZÓN A CADA UNA)
-      const año = ahora.getFullYear();
+      // ✅ CONECTAR CON EL PARTI (+1 CORAZÓN DEL DÍA EXACTO)
+      const año = fechaActualZona.getFullYear();
       const inicioAño = new Date(año, 0, 1);
-      const diasTranscurridos = Math.floor((ahora - inicioAño) / 86400000);
+      const diasTranscurridos = Math.floor((fechaActualZona - inicioAño) / 86400000);
       const semana = Math.ceil((diasTranscurridos + inicioAño.getDay() + 1) / 7);
       const dbKeyParti = `participacion_semana_${año}_${semana}`;
       
@@ -103,7 +102,7 @@ export default {
           personaParti = { nombre: nombreJugadora, corazones: [], fechaRegistro: ahora.toISOString() };
           registrosParti.push(personaParti);
         }
-        personaParti.corazones.push(emojiHoy);
+        personaParti.corazones.push(emojiHoy); // ✅ Se guarda el emoji del día del versus
 
         const perfilKey = `perfil_${nombreKey}`;
         const chatDataActualizado = await db.getChat(msg.chat);

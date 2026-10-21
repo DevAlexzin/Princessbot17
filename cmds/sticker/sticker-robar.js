@@ -2,7 +2,7 @@
 import { addExif } from '../lib/sticker.js'
 
 export default {
-  command: ['robar'],
+  command: ['robars'],
   category: 'sticker',
   botAdmin: false,
 

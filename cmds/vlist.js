@@ -19,7 +19,6 @@ export default {
         fechaBuscada = `${dia}-${mes}`;
       }
 
-      // Normalizamos la fecha (acepta 20-10 o 20/10)
       fechaBuscada = fechaBuscada.replace(/\//g, '-');
 
       const chatData = await db.getChat(msg.chat);

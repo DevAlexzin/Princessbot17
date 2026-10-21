@@ -24,7 +24,7 @@ export default {
 *📌 Ejemplo:*
 \`.mvp Sofia/15/Rocio/12\`
 
-> 💡 El ganador (más kills) suma +1 MVP.`);
+> 💡 El ganador (más kills) suma +1 MVP y el emoji 🍒 en su lista de participación.`);
       }
 
       const partes = textoUsuario.split('/').map(p => p.trim()).filter(p => p !== '');
@@ -45,7 +45,7 @@ export default {
 
       console.log(`🏆 [MVP] Ganador: ${ganadorNombre} con ${ganadorKills} kills`);
 
-      // ✅ Sumamos MVP al perfil por NOMBRE
+      // ✅ 1. SUMAMOS MVP AL PERFIL
       const chatData = await db.getChat(msg.chat);
       const perfilKey = `perfil_${ganadorKey}`;
 
@@ -55,10 +55,30 @@ export default {
         chatData[perfilKey].mvpTotales = mvpNuevo;
         await db.updateChat(msg.chat, perfilKey, chatData[perfilKey]);
         console.log(`📊 [MVP → PERFIL] ${ganadorNombre} ahora tiene ${mvpNuevo} MVPs`);
-      } else {
-        console.log(`⚠️ [MVP] No hay perfil para "${ganadorNombre}"`);
       }
 
+      // ✅ 2. CONECTAMOS CON EL PARTI (Sumamos el emoji 🍒)
+      const ahora = new Date();
+      const año = ahora.getFullYear();
+      const inicioAño = new Date(año, 0, 1);
+      const diasTranscurridos = Math.floor((ahora - inicioAño) / 86400000);
+      const semana = Math.ceil((diasTranscurridos + inicioAño.getDay() + 1) / 7);
+      const dbKeyParti = `participacion_semana_${año}_${semana}`;
+      
+      let registrosParti = chatData[dbKeyParti] || [];
+      let personaParti = registrosParti.find(r => r.nombre.toLowerCase().trim() === ganadorKey);
+
+      if (!personaParti) {
+        personaParti = { nombre: ganadorNombre, corazones: [], fechaRegistro: ahora.toISOString() };
+        registrosParti.push(personaParti);
+      }
+      
+      // Le sumamos la cereza 🍒 a su lista
+      personaParti.corazones.push('🍒');
+      await db.updateChat(msg.chat, dbKeyParti, registrosParti);
+      console.log(`🍒 [MVP → PARTI] Se sumó la cereza a ${ganadorNombre}`);
+
+      // 3. Enviamos el mensaje del MVP
       const mvpMsg = `⋆ 𖤓🏹 𝗠𝘃𝗽 𝗣𝘀𝘆𝗰𝗵𝗼 𝗟𝗮𝗻𝗱
 
 ⭒˚ ᵎᵎ✮🍒 𝓟𝓼𝔂𝓬𝓱𝓸𝓼𝓲𝓽𝓪 𝓼𝓪𝓵𝓪 𝟏 

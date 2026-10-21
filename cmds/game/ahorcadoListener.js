@@ -1,48 +1,7 @@
 import db from "#db"
-import { mostrarAhorcado } from "./ahorcado.js"
+import { normalizar, ocultarPalabra, mostrarAhorcado } from "./ahorcado.js"
 
 const intentosMaximos = 6;
-
-function normalizar(str) {
-    return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-}
-
-function ocultarPalabra(palabra, letrasAdivinadas) {
-    let salida = "";
-    for (const letra of palabra) {
-        salida += letrasAdivinadas.includes(letra) ? letra + " " : "_ ";
-    }
-    return salida.trim();
-}
-
-function terminarJuego(sender, palabra, mensajeActual, intentos, letrasAdivinadas) {
-    if (intentos <= 0) {
-        delete global.ahorcado[sender];
-        return {
-            terminado: true,
-            mensaje: `❌ ¡Perdiste! La palabra era: *${palabra}*`
-        };
-    }
-
-    if (!mensajeActual.includes("_")) {
-        let exp = Math.floor(Math.random() * 300);
-        if (palabra.length >= 8) exp = Math.floor(Math.random() * 3500);
-
-        // Guardar exp en la base de datos de tu bot
-        db.updateUser(sender, 'exp', exp).catch(() => {});
-        delete global.ahorcado[sender];
-
-        return {
-            terminado: true,
-            mensaje: `🎉 ¡Ganaste! Adivinaste la palabra *${palabra}*\n\nHas ganado: *${exp} Exp*`
-        };
-    }
-
-    return {
-        terminado: false,
-        mensaje: `${mostrarAhorcado(intentos)}\n\n${mensajeActual}\n\n💡 Letras usadas: ${letrasAdivinadas.join(", ")}\n🎯 Intentos restantes: ${intentos}\n> solo quién usa el comando puede intentar.`
-    };
-}
 
 export default {
   type: 'before',
@@ -79,8 +38,26 @@ export default {
         let mensajeActual = ocultarPalabra(palabraNorm, letrasAdivinadas);
         global.ahorcado[sender] = { palabra, letrasAdivinadas, intentos };
 
-        let r = terminarJuego(sender, palabra, mensajeActual, intentos, letrasAdivinadas);
-        await sock.sendMessage(msg.chat, { text: r.mensaje }, { quoted: msg });
+        // Verificamos si ganó o perdió
+        if (intentos <= 0) {
+          delete global.ahorcado[sender];
+          await sock.sendMessage(msg.chat, { text: `❌ ¡Perdiste! La palabra era: *${palabra}*` }, { quoted: msg });
+          return true;
+        }
+
+        if (!mensajeActual.includes("_")) {
+          let exp = Math.floor(Math.random() * 300);
+          if (palabra.length >= 8) exp = Math.floor(Math.random() * 3500);
+          db.updateUser(sender, 'exp', exp).catch(() => {});
+          delete global.ahorcado[sender];
+          await sock.sendMessage(msg.chat, { text: `🎉 ¡Ganaste! Adivinaste la palabra *${palabra}*\n\nHas ganado: *${exp} Exp*` }, { quoted: msg });
+          return true;
+        }
+
+        // Si sigue jugando, mostramos el dibujo
+        await sock.sendMessage(msg.chat, {
+          text: `${mostrarAhorcado(intentos)}\n\n${mensajeActual}\n\n💡 Letras usadas: ${letrasAdivinadas.join(", ")}\n🎯 Intentos restantes: ${intentos}\n> solo quién usa el comando puede intentar.`
+        }, { quoted: msg });
         return true;
       }
 

@@ -3,7 +3,7 @@ import db from "#db"
 export default {
   command: ['black', 'blacklist', 'listanegra'],
   category: 'grupo',
-  isAdmin: true, // ✅ Solo admins pueden vetar rivales
+  isAdmin: true, 
   botAdmin: false,
   run: async ({ msg, sock }) => {
     try {
@@ -12,67 +12,75 @@ export default {
       let textoCompleto = msg.text || msg.body || '';
       let texto = textoCompleto.replace(/^[.\/!#]?(black|blacklist|listanegra)\s*/i, '').trim();
 
+      // ✅ Si no hay texto, mostrar la lista actual
       if (!texto) {
-        return msg.reply(`⛔ *Lista Negra de Rivales*
+        const chatData = await db.getChat(msg.chat);
+        const blacklist = chatData[`blacklist_${msg.chat}`] || [];
 
-*📋 Formato para vetar:*
-\`.black @rival1 @rival2\`
+        if (blacklist.length === 0) {
+          return msg.reply('⚠️ *La lista negra está vacía.*\n\n> Usa `.black @rival` para agregar rivales vetados.');
+        }
 
-*📌 Ejemplo:*
-\`.black @psycho @pepitas\`
+        let mensajeLista = `᭝ 🌈 ՟ 𝓑𝓵𝓪𝓬𝓴 𝓵𝓲𝓼𝓽 𝓟𝓼𝔂𝓬𝓱𝓸 𝓛𝓪𝓷𝓭\n\n`;
+        mensajeLista += `ꕤ ╴╴╴╴ꕤ ╴╴╴╴ꕤ ╴╴╴╴ꕤ\n\n`;
 
-> 💡 Los rivales anotados aquí aparecerán en la lista negra.`);
+        for (const rival of blacklist) {
+          mensajeLista += `ᨳ ▸ › ${rival}\n`;
+        }
+
+        mensajeLista += `\nꕤ ╴╴╴╴ꕤ ╴╴╴╴ꕤ ╴╴╴╴ꕤ`;
+
+        return sock.sendMessage(msg.chat, { text: mensajeLista.trim() }, { quoted: msg });
       }
 
-      // ✅ DETECCIÓN ROBUSTA DE MENCIONES
-      let menciones = [];
-      if (msg.mentionedJid?.length > 0) menciones = msg.mentionedJid;
-      else if (msg.mentions?.length > 0) menciones = msg.mentions;
-      else if (msg.message?.extendedTextMessage?.contextInfo?.mentionedJid) {
-        menciones = msg.message.extendedTextMessage.contextInfo.mentionedJid;
-      }
-      else if (msg.message?.contextInfo?.mentionedJid) {
-        menciones = msg.message.contextInfo.mentionedJid;
-      }
-
+      // ✅ LÓGICA PARA AGREGAR RIVALES POR TEXTO
       const chatData = await db.getChat(msg.chat);
       const dbKey = `blacklist_${msg.chat}`;
       let blacklist = chatData[dbKey] || [];
 
-      // ✅ SI HAY MENCIONES, LOS AGREGAMOS A LA LISTA
-      if (menciones.length > 0) {
-        for (const mencion of menciones) {
-          const num = mencion.split('@')[0];
-          if (!blacklist.includes(num)) {
-            blacklist.push(num);
-          }
+      // Separamos el texto por espacios o comas para aceptar varios rivales a la vez
+      const nuevosRivales = texto.split(/[\s,]+/).map(r => r.trim()).filter(r => r !== '');
+      
+      let agregados = 0;
+      let yaEstaban = 0;
+
+      for (const rival of nuevosRivales) {
+        // Normalizamos para que todos tengan @ al inicio
+        let rivalFormat = rival.startsWith('@') ? rival : `@${rival}`;
+        
+        // Verificamos si ya está en la lista (ignorando mayúsculas/minúsculas)
+        const existe = blacklist.some(r => r.toLowerCase() === rivalFormat.toLowerCase());
+        
+        if (!existe) {
+          blacklist.push(rivalFormat);
+          agregados++;
+        } else {
+          yaEstaban++;
         }
+      }
+
+      if (agregados > 0) {
         await db.updateChat(msg.chat, dbKey, blacklist);
-        console.log(`✅ [BLACKLIST] Agregados: ${menciones.length} rivales.`);
       }
 
-      if (blacklist.length === 0) {
-        return msg.reply('⚠️ *La lista negra está vacía.*\n\n> Usa `.black @rival` para agregar rivales vetados.');
-      }
-
-      // ✅ ARMAMOS LA LISTA VISUAL
-      let mensajeLista = `┈─˖Ი𐑼⋆ 𝗥𝗶𝘃𝗮𝗹𝗲𝘀 𝗕𝗹𝗼𝗾𝘂𝗲𝗮𝗱𝗼𝘀\n\n`;
-
-      for (const num of blacklist) {
-        mensajeLista += `ᨳ ▸ ›𝐑𝐢𝐯𝐚𝐥\n@${num}\n\n`;
-      }
-
+      // ✅ MOSTRAMOS LA LISTA COMPLETA ACTUALIZADA
+      let mensajeLista = `᭝ 🌈 ՟ 𝓑𝓵𝓪𝓬𝓴 𝓵𝓲𝓼𝓽 𝓟𝓼𝔂𝓬𝓱𝓸 𝓛𝓪𝓷𝓭\n\n`;
       mensajeLista += `ꕤ ╴╴╴╴ꕤ ╴╴╴╴ꕤ ╴╴╴╴ꕤ\n\n`;
-      mensajeLista += `> ⛔ Estos rivales no deberían jugar.`;
-      mensajeLista += `\n\n               ु   ᨳ𐔌՞֊ ˕ ֊՞𐦯ᜊ  ु`;
 
-      // Enviamos la lista con las menciones resaltadas
-      const mentionsFinal = blacklist.map(num => num + '@s.whatsapp.net');
+      for (const rival of blacklist) {
+        mensajeLista += `ᨳ ▸ › ${rival}\n`;
+      }
 
-      await sock.sendMessage(msg.chat, {
-        text: mensajeLista.trim(),
-        mentions: mentionsFinal
-      }, { quoted: msg });
+      mensajeLista += `\nꕤ ╴╴╴╴ꕤ ╴╴╴╴ꕤ ╴╴╴╴ꕤ`;
+      
+      if (agregados > 0) {
+        mensajeLista += `\n\n> ✅ Se agregaron ${agregados} rival(es) a la lista.`;
+      }
+      if (yaEstaban > 0) {
+        mensajeLista += `\n> ⚠️ ${yaEstaban} rival(es) ya estaban en la lista.`;
+      }
+
+      await sock.sendMessage(msg.chat, { text: mensajeLista.trim() }, { quoted: msg });
 
     } catch (e) {
       console.error("❌ [BLACKLIST ERROR]:", e.message);

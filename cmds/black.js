@@ -1,7 +1,7 @@
 import db from "#db"
 
 export default {
-  command: ['black', 'anotarblack', 'perdido'],
+  command: ['loss', 'lost', 'black', 'perdido'], // ✅ Ahora responde a loss/lost
   category: 'grupo',
   botAdmin: false,
   run: async ({ msg, sock }) => {
@@ -9,16 +9,17 @@ export default {
       if (!msg.isGroup) return msg.reply('《✤》 Este comando solo funciona en grupos.');
 
       let textoCompleto = msg.text || msg.body || '';
-      let texto = textoCompleto.replace(/^[.\/!#]?(black|anotarblack|perdido)\s*/i, '').trim();
+      // ✅ Actualizamos el regex para que reconozca las nuevas palabras
+      let texto = textoCompleto.replace(/^[.\/!#]?(loss|lost|black|perdido)\s*/i, '').trim();
 
       if (!texto) {
         return msg.reply(`💀 *Anotar Versus Perdido*
 
 *📋 Formato:*
-\`.black @rival Resultado Fecha\`
+\`.loss @rival Resultado Fecha\`
 
 *📌 Ejemplo:*
-\`.black @psycho 0-2 29/10\``);
+\`.loss @psycho 0-2 29/10\``);
       }
 
       const fechaMatch = texto.match(/(\d{1,2}\/\d{1,2})/);
@@ -33,7 +34,7 @@ export default {
 
       const resultadoMatch = texto.match(/(\d+)\s*-\s*(\d+)/);
       if (!resultadoMatch) {
-        return msg.reply('❌ No se detectó el resultado. Usa el formato `0-2`.');
+        return msg.reply('❌ No se detectó el resultado. Usa el formato `0-2` (tus goles - sus goles).');
       }
 
       let rivalNombre = texto
@@ -80,7 +81,7 @@ export default {
       await sock.sendMessage(msg.chat, { text: mensajeLista.trim() }, { quoted: msg });
 
     } catch (e) {
-      console.error("❌ [BLACK ERROR]:", e.message);
+      console.error("❌ [LOSS ERROR]:", e.message);
       msg.reply('❌ Ocurrió un error al anotar el versus perdido.');
     }
   },

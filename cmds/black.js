@@ -21,7 +21,6 @@ export default {
 \`.black @psycho 0-2 29/10\``);
       }
 
-      // ✅ Buscamos la fecha
       const fechaMatch = texto.match(/(\d{1,2}\/\d{1,2})/);
       let fecha = fechaMatch ? fechaMatch[1] : '';
       
@@ -32,13 +31,11 @@ export default {
         fecha = `${dia}/${mes}`;
       }
 
-      // ✅ Buscamos el resultado
       const resultadoMatch = texto.match(/(\d+)\s*-\s*(\d+)/);
       if (!resultadoMatch) {
-        return msg.reply('❌ No se detectó el resultado. Usa el formato `0-2` (ganados-perdidos).');
+        return msg.reply('❌ No se detectó el resultado. Usa el formato `0-2`.');
       }
 
-      // ✅ Extraemos el nombre del rival
       let rivalNombre = texto
         .replace(/(\d{1,2}\/\d{1,2})/g, '')
         .replace(/(\d+)\s*-\s*(\d+)/g, '')
@@ -49,12 +46,11 @@ export default {
       }
 
       if (!rivalNombre) {
-        return msg.reply('❌ Debes escribir el nombre o @ del rival.\n\n*Ejemplo:* `.black @psycho 0-2 29/10`');
+        return msg.reply('❌ Debes escribir el nombre o @ del rival.');
       }
 
       const rivalKey = rivalNombre.toLowerCase().replace(/[^a-z0-9@]/g, '');
 
-      // Guardamos
       const chatData = await db.getChat(msg.chat);
       const dbKey = `versus_rivales_${msg.chat}`;
       let rivalesData = chatData[dbKey] || {};
@@ -66,24 +62,20 @@ export default {
       rivalesData[rivalKey].perdidos.push(fecha);
       await db.updateChat(msg.chat, dbKey, rivalesData);
 
-      // Diseño
-      let listaGanados = rivalesData[rivalKey].ganados.length > 0 
-        ? rivalesData[rivalKey].ganados.join(' ') 
-        : 'Ninguno';
-      let listaPerdidos = rivalesData[rivalKey].perdidos.join(' ');
+      // ✅ ARMAMOS LA LISTA CON TODOS LOS RIVALES
+      let mensajeLista = `┈─˖Ი𐑼⋆ 𝗥𝗶𝘃𝗮𝗹𝗲𝘀 𝗣𝘀𝘆𝗰𝗵𝗼 𝗟𝗮𝗻𝗱\n\n`;
 
-      const mensajeLista = `┈─˖Ი𐑼⋆ 𝗥𝗶𝘃𝗮𝗹𝗲𝘀 𝗣𝘀𝘆𝗰𝗵𝗼 𝗟𝗮𝗻𝗱
+      for (const [key, data] of Object.entries(rivalesData)) {
+        let listaGanados = data.ganados.length > 0 ? data.ganados.join(' ') : 'Ninguno';
+        let listaPerdidos = data.perdidos.length > 0 ? data.perdidos.join(' ') : 'Ninguno';
 
-ᨳ ▸ ›𝐑𝐢𝐯𝐚𝐥
-${rivalesData[rivalKey].nombre}
+        mensajeLista += `ᨳ ▸ ›𝐑𝐢𝐯𝐚𝐥\n${data.nombre}\n\n`;
+        mensajeLista += `ꕤ ╴╴╴╴ꕤ ╴╴╴╴ꕤ ╴╴╴╴ꕤ\n\n`;
+        mensajeLista += `᭝ 🏹 ՟ Gᥲᥒᥲdos ┆ ${listaGanados}\n\n`;
+        mensajeLista += `᭝ 🌈 ՟ Pᥱrdιdos ┆ ${listaPerdidos}\n\n`;
+      }
 
-ꕤ ╴╴╴╴ꕤ ╴╴╴╴ꕤ ╴╴╴╴ꕤ
-
-᭝ 🏹 ՟ Gᥲᥒᥲdos ┆ ${listaGanados}
-
-᭝ 🌈 ՟ Pᥱrdιdos ┆ ${listaPerdidos}
-
-               ु   ᨳ𐔌՞֊ ˕ ֊՞𐦯ᜊ  ु`;
+      mensajeLista += `               ु   ᨳ𐔌՞֊ ˕ ֊՞𐦯ᜊ  ु`;
 
       await sock.sendMessage(msg.chat, { text: mensajeLista.trim() }, { quoted: msg });
 

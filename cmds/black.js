@@ -21,10 +21,21 @@ export default {
 \`.black @psycho 0-2 29/10\``);
       }
 
-      const menciones = msg.mentionedJid || msg.mentions || [];
+      // ✅ DETECCIÓN ROBUSTA DE MENCIONES
+      let menciones = [];
+      if (msg.mentionedJid?.length > 0) menciones = msg.mentionedJid;
+      else if (msg.mentions?.length > 0) menciones = msg.mentions;
+      else if (msg.message?.extendedTextMessage?.contextInfo?.mentionedJid) {
+        menciones = msg.message.extendedTextMessage.contextInfo.mentionedJid;
+      }
+      else if (msg.message?.contextInfo?.mentionedJid) {
+        menciones = msg.message.contextInfo.mentionedJid;
+      }
+
       if (menciones.length === 0) {
         return msg.reply('❌ Debes mencionar al rival.\n\n*Ejemplo:* `.black @psycho 0-2 29/10`');
       }
+      
       const rivalId = menciones[0];
       const rivalNum = rivalId.split('@')[0];
 
@@ -40,7 +51,7 @@ export default {
         fecha = `${dia}/${mes}`;
       }
 
-      // Guardamos en la base de datos
+      // Guardamos
       const chatData = await db.getChat(msg.chat);
       const dbKey = `versus_rivales_${msg.chat}`;
       let rivalesData = chatData[dbKey] || {};
@@ -52,7 +63,7 @@ export default {
       rivalesData[rivalNum].perdidos.push(fecha);
       await db.updateChat(msg.chat, dbKey, rivalesData);
 
-      // ✅ DISEÑO EXACTO
+      // Diseño
       let listaGanados = rivalesData[rivalNum].ganados.length > 0 
         ? rivalesData[rivalNum].ganados.join(' ') 
         : 'Ninguno';
@@ -73,7 +84,7 @@ export default {
 
       await sock.sendMessage(msg.chat, {
         text: mensajeLista.trim(),
-        mentions: [rivalId]
+        mentions: menciones
       }, { quoted: msg });
 
     } catch (e) {

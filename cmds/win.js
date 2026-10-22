@@ -9,7 +9,8 @@ export default {
       if (!msg.isGroup) return msg.reply('《✤》 Este comando solo funciona en grupos.');
 
       let textoCompleto = msg.text || msg.body || '';
-      const texto = textoCompleto.replace(/^[.\/!#]?(win|anotarwin|ganado)\s*/i, '').trim();
+      // Quitamos el comando
+      let texto = textoCompleto.replace(/^[.\/!#]?(win|anotarwin|ganado)\s*/i, '').trim();
 
       if (!texto) {
         return msg.reply(`🏆 *Anotar Versus Ganado*
@@ -21,29 +22,8 @@ export default {
 \`.win @psycho 2-0 29/10\``);
       }
 
-      // ✅ DETECCIÓN ROBUSTA DE MENCIONES (Como en los otros comandos)
-      let menciones = [];
-      if (msg.mentionedJid?.length > 0) menciones = msg.mentionedJid;
-      else if (msg.mentions?.length > 0) menciones = msg.mentions;
-      else if (msg.message?.extendedTextMessage?.contextInfo?.mentionedJid) {
-        menciones = msg.message.extendedTextMessage.contextInfo.mentionedJid;
-      }
-      else if (msg.message?.contextInfo?.mentionedJid) {
-        menciones = msg.message.contextInfo.mentionedJid;
-      }
-
-      if (menciones.length === 0) {
-        return msg.reply('❌ Debes mencionar al rival.\n\n*Ejemplo:* `.win @psycho 2-0 29/10`');
-      }
-      
-      const rivalId = menciones[0];
-      const rivalNum = rivalId.split('@')[0];
-
-      // Extraemos el texto sin la mención
-      let textoSinMencion = texto.replace(/@\d{8,15}/g, '').trim();
-      
-      // Buscamos la fecha
-      const fechaMatch = textoSinMencion.match(/(\d{1,2}\/\d{1,2})/);
+      // ✅ Buscamos la fecha
+      const fechaMatch = texto.match(/(\d{1,2}\/\d{1,2})/);
       let fecha = fechaMatch ? fechaMatch[1] : '';
       
       if (!fecha) {
@@ -53,28 +33,53 @@ export default {
         fecha = `${dia}/${mes}`;
       }
 
+      // ✅ Buscamos el resultado (ej: 2-0)
+      const resultadoMatch = texto.match(/(\d+)\s*-\s*(\d+)/);
+      if (!resultadoMatch) {
+        return msg.reply('❌ No se detectó el resultado. Usa el formato `2-0` (ganados-perdidos).');
+      }
+
+      // ✅ Extraemos el nombre del rival (todo lo que no sea fecha ni resultado)
+      // Quitamos la fecha y el resultado del texto para obtener solo el nombre
+      let rivalNombre = texto
+        .replace(/(\d{1,2}\/\d{1,2})/g, '') // Quita fecha
+        .replace(/(\d+)\s*-\s*(\d+)/g, '')  // Quita resultado
+        .trim();
+
+      // Si el rival empieza con @, lo dejamos así. Si no, le ponemos @ por si acaso.
+      if (rivalNombre && !rivalNombre.startsWith('@')) {
+        rivalNombre = '@' + rivalNombre;
+      }
+
+      if (!rivalNombre) {
+        return msg.reply('❌ Debes escribir el nombre o @ del rival.\n\n*Ejemplo:* `.win @psycho 2-0 29/10`');
+      }
+
+      // Usamos el nombre como "llave" para guardar en la base de datos
+      const rivalKey = rivalNombre.toLowerCase().replace(/[^a-z0-9@]/g, '');
+
       // Guardamos
       const chatData = await db.getChat(msg.chat);
       const dbKey = `versus_rivales_${msg.chat}`;
       let rivalesData = chatData[dbKey] || {};
 
-      if (!rivalesData[rivalNum]) {
-        rivalesData[rivalNum] = { ganados: [], perdidos: [] };
+      if (!rivalesData[rivalKey]) {
+        rivalesData[rivalKey] = { nombre: rivalNombre, ganados: [], perdidos: [] };
       }
 
-      rivalesData[rivalNum].ganados.push(fecha);
+      rivalesData[rivalKey].ganados.push(fecha);
       await db.updateChat(msg.chat, dbKey, rivalesData);
 
       // Diseño
-      let listaGanados = rivalesData[rivalNum].ganados.join(' ');
-      let listaPerdidos = rivalesData[rivalNum].perdidos.length > 0 
-        ? rivalesData[rivalNum].perdidos.join(' ') 
+      let listaGanados = rivalesData[rivalKey].ganados.join(' ');
+      let listaPerdidos = rivalesData[rivalKey].perdidos.length > 0 
+        ? rivalesData[rivalKey].perdidos.join(' ') 
         : 'Ninguno';
 
       const mensajeLista = `┈─˖Ი𐑼⋆ 𝗥𝗶𝘃𝗮𝗹𝗲𝘀 𝗣𝘀𝘆𝗰𝗵𝗼 𝗟𝗮𝗻𝗱
 
 ᨳ ▸ ›𝐑𝐢𝐯𝐚𝐥
-@${rivalNum}
+${rivalesData[rivalKey].nombre}
 
 ꕤ ╴╴╴╴ꕤ ╴╴╴╴ꕤ ╴╴╴╴ꕤ
 
@@ -84,10 +89,7 @@ export default {
 
                ु   ᨳ𐔌՞֊ ˕ ֊՞𐦯ᜊ  ु`;
 
-      await sock.sendMessage(msg.chat, {
-        text: mensajeLista.trim(),
-        mentions: menciones // ✅ Enviamos la mención real para que se vea azul
-      }, { quoted: msg });
+      await sock.sendMessage(msg.chat, { text: mensajeLista.trim() }, { quoted: msg });
 
     } catch (e) {
       console.error("❌ [WIN ERROR]:", e.message);

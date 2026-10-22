@@ -21,16 +21,28 @@ export default {
 \`.win @psycho 2-0 29/10\``);
       }
 
-      const menciones = msg.mentionedJid || msg.mentions || [];
+      // ✅ DETECCIÓN ROBUSTA DE MENCIONES (Como en los otros comandos)
+      let menciones = [];
+      if (msg.mentionedJid?.length > 0) menciones = msg.mentionedJid;
+      else if (msg.mentions?.length > 0) menciones = msg.mentions;
+      else if (msg.message?.extendedTextMessage?.contextInfo?.mentionedJid) {
+        menciones = msg.message.extendedTextMessage.contextInfo.mentionedJid;
+      }
+      else if (msg.message?.contextInfo?.mentionedJid) {
+        menciones = msg.message.contextInfo.mentionedJid;
+      }
+
       if (menciones.length === 0) {
         return msg.reply('❌ Debes mencionar al rival.\n\n*Ejemplo:* `.win @psycho 2-0 29/10`');
       }
+      
       const rivalId = menciones[0];
       const rivalNum = rivalId.split('@')[0];
 
+      // Extraemos el texto sin la mención
       let textoSinMencion = texto.replace(/@\d{8,15}/g, '').trim();
       
-      // Extraemos la fecha
+      // Buscamos la fecha
       const fechaMatch = textoSinMencion.match(/(\d{1,2}\/\d{1,2})/);
       let fecha = fechaMatch ? fechaMatch[1] : '';
       
@@ -41,7 +53,7 @@ export default {
         fecha = `${dia}/${mes}`;
       }
 
-      // Guardamos en la base de datos
+      // Guardamos
       const chatData = await db.getChat(msg.chat);
       const dbKey = `versus_rivales_${msg.chat}`;
       let rivalesData = chatData[dbKey] || {};
@@ -53,7 +65,7 @@ export default {
       rivalesData[rivalNum].ganados.push(fecha);
       await db.updateChat(msg.chat, dbKey, rivalesData);
 
-      // ✅ DISEÑO EXACTO
+      // Diseño
       let listaGanados = rivalesData[rivalNum].ganados.join(' ');
       let listaPerdidos = rivalesData[rivalNum].perdidos.length > 0 
         ? rivalesData[rivalNum].perdidos.join(' ') 
@@ -74,7 +86,7 @@ export default {
 
       await sock.sendMessage(msg.chat, {
         text: mensajeLista.trim(),
-        mentions: [rivalId]
+        mentions: menciones // ✅ Enviamos la mención real para que se vea azul
       }, { quoted: msg });
 
     } catch (e) {

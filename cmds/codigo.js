@@ -7,10 +7,6 @@ export default {
   botAdmin: false,
   run: async ({ msg, sock }) => {
     try {
-      console.log("========================================");
-      console.log("💻 [DEBUG] Comando 'codigo' ejecutado.");
-      console.log("========================================");
-
       let textoCompleto = msg.text || msg.body || '';
       const consulta = textoCompleto
         .replace(/^[.\/!#]?(codigo|code|programar)\s*/i, '')
@@ -22,52 +18,41 @@ export default {
 *📋 Uso:* \`.codigo tarea\`
 
 *📌 Ejemplos:*
-> \`.codigo comando de kick\`
+> \`.codigo comando para dar advertencias\`
 > \`.codigo comando para stickers\`
-> \`.codigo comando de ruleta\`
 
-> 💡 *Nota:* La IA generará el código con la estructura exacta de Princess Bot.`);
+> 💡 *Nota:* La IA generará el código con la estructura de tu bot.`);
       }
 
       console.log(`💻 [CODIGO] Consulta: ${consulta}`);
+      console.log(`🌐 [CODIGO] Consultando API...`);
 
-      // ✅ SYSTEM PROMPT CON LA ESTRUCTURA EXACTA DEL BOT
-      const promptSistema = `Eres un programador experto en crear comandos para un bot de WhatsApp hecho con Node.js y Baileys.
-El usuario te pedirá que crees un comando. DEBES responder SIEMPRE con la estructura exacta que usa este bot, que es la siguiente:
+      // ✅ PROMPT OPTIMIZADO (Más corto para que la API no falle)
+      const prompt = `Eres un programador experto en Node.js y Baileys.
+Crea un comando para un bot de WhatsApp usando EXACTAMENTE esta plantilla:
 
 import db from "#db"
 
 export default {
-  command: ['nombrecomando', 'alias'],
+  command: ['nombre'],
   category: 'grupo',
   isAdmin: false,
-  botAdmin: false,
   run: async ({ msg, sock }) => {
     try {
-      // Lógica del comando
-      // Para responder: msg.reply("texto")
-      // Para enviar mensajes: sock.sendMessage(msg.chat, { text: "texto" }, { quoted: msg })
-      // Para obtener el texto: msg.text o msg.body
-      // Para mencionar: msg.mentionedJid
-    } catch (e) {
-      console.error("❌ [ERROR]:", e.message);
-      msg.reply('❌ Ocurrió un error.');
-    }
+      // usa msg.reply() para responder
+      // usa sock.sendMessage(msg.chat, { text: "" }, { quoted: msg }) para enviar
+    } catch (e) { msg.reply('Error'); }
   }
-};
+}
 
-REGLAS ESTRICTAS:
-1. Usa SIEMPRE la estructura de arriba. No uses "module.exports", no uses "conn", no uses "m", usa "msg" y "sock".
-2. La categoría por defecto es 'grupo' (o 'info', 'fun', 'search', 'download', 'ia', 'sticker' según corresponda).
-3. Si es un comando de admin, pon isAdmin: true. Si el bot debe ser admin, pon botAdmin: true.
-4. No inventes variables que no existan. Usa db.getChat(msg.chat) para obtener la base de datos y db.updateChat(msg.chat, 'clave', valor) para guardar.
-5. El código debe ir dentro de un bloque de markdown \`\`\`javascript ... \`\`\` y luego una breve explicación.
+Reglas:
+1. No uses "conn" ni "m". Usa "msg" y "sock".
+2. Para guardar datos usa db.updateChat(msg.chat, 'clave', valor).
+3. Devuelve solo el código en un bloque markdown y una breve explicación.
 
-Consulta del usuario: ${consulta}`;
+Tarea: ${consulta}`;
 
-      const urlAPI = `https://api.delirius.online/ia/chatgpt?q=${encodeURIComponent(promptSistema)}`;
-
-      console.log(`🌐 [CODIGO] Consultando API...`);
+      const urlAPI = `https://api.delirius.online/ia/chatgpt?q=${encodeURIComponent(prompt)}`;
       
       const res = await fetch(urlAPI, {
         headers: {
@@ -90,10 +75,22 @@ Consulta del usuario: ${consulta}`;
         return msg.reply('❌ La IA devolvió una respuesta inválida.');
       }
 
-      const respuestaIA = json.result || json.response || json.answer || json.data || json.message;
+      // ✅ Buscamos la respuesta en cualquier campo posible
+      let respuestaIA = json.result || json.response || json.answer || json.data || json.message || json.text;
 
-      if (!respuestaIA) {
-        return msg.reply('❌ La IA no devolvió una respuesta.');
+      // ✅ Si la API devuelve un error interno
+      if (!respuestaIA || respuestaIA.toLowerCase().includes('no response') || respuestaIA.toLowerCase().includes('error')) {
+         console.log('⚠️ [CODIGO] La API no generó respuesta. Intentando de nuevo...');
+         
+         // Hacemos un segundo intento con un prompt más simple
+         const promptSimple = `Escribe un comando de Baileys en Node.js para: ${consulta}. Usa export default { command: [], run: async ({ msg, sock }) => { ... } }`;
+         const res2 = await fetch(`https://api.delirius.online/ia/chatgpt?q=${encodeURIComponent(promptSimple)}`);
+         const json2 = await res2.json();
+         respuestaIA = json2.result || json2.response || json2.message;
+         
+         if (!respuestaIA) {
+           return msg.reply('❌ La IA está saturada y no pudo generar el código. Intenta de nuevo en unos minutos.');
+         }
       }
 
       console.log(`✅ [CODIGO] Respuesta generada. Enviando...`);

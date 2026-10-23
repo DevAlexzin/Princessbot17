@@ -3,7 +3,7 @@ import db from "#db"
 export default {
   command: ['patro', 'patrocinio'],
   category: 'grupo',
-  isAdmin: true, // Solo admins pueden usarlo
+  isAdmin: true,
   botAdmin: false,
   run: async ({ msg, sock }) => {
     try {
@@ -32,6 +32,26 @@ export default {
 
       const [nombre, valor, numero, banners, pack, bannerOficial] = partes;
 
+      // ✅ Guardamos el patrocinio en la DB con estado "pendiente"
+      const chatData = await db.getChat(msg.chat);
+      const dbKey = `patrocinios_${msg.chat}`;
+      let patrocinios = chatData[dbKey] || [];
+      
+      const idPatro = Date.now().toString();
+      patrocinios.push({
+        id: idPatro,
+        nombre,
+        valor,
+        numero,
+        banners,
+        pack,
+        bannerOficial,
+        estado: 'pendiente',
+        fecha: new Date().toISOString()
+      });
+      
+      await db.updateChat(msg.chat, dbKey, patrocinios);
+
       const patroMsg = `ꔛㅤׅ 🏹 𝗣𝗮𝘁𝗿𝗼
 ㅤ    ㅤ╰ ▸ › ${bannerOficial}
 
@@ -46,10 +66,25 @@ export default {
 ु   ᜊ 🪩 𝓑𝓪𝓷𝓷𝓮𝓻𝓼
 ╴ᨳ ⸝⸝ ${banners}
 
- ┈─˖Ი𐑼⋆ 𝓔𝓷𝓽𝓻𝓮𝓰𝓪𝓭𝓸`;
+ ┈─˖Ი𐑼⋆ 𝓔𝓷𝓽𝓻𝓮𝓰𝓪𝓭𝓸
 
-      // Enviamos el mensaje sin menciones para que se vea limpio
-      await sock.sendMessage(msg.chat, { text: patroMsg.trim() }, { quoted: msg });
+> 📌 Estado: *Pendiente*`;
+
+      // ✅ Enviamos el mensaje CON el botón
+      await sock.sendMessage(msg.chat, {
+        text: patroMsg.trim(),
+        footer: 'Princess Bot',
+        buttons: [
+          { 
+            buttonId: `patro_entre_${idPatro}`, 
+            buttonText: { displayText: '✅ Marcar como Entregado' }, 
+            type: 1 
+          }
+        ],
+        headerType: 1
+      }, { quoted: msg });
+
+      console.log(`✅ [PATRO] Patrocinio ${idPatro} creado.`);
 
     } catch (e) {
       console.error("❌ [PATRO ERROR]:", e.message);

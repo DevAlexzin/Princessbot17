@@ -1,8 +1,7 @@
 import db from "#db"
 import fs from 'fs'
 import fetch from 'node-fetch'
-import exif from '../../lib/exif.js' // ✅ DOS niveles atrás es la ruta correcta
-const { writeExif } = exif
+import sharp from 'sharp' // ✅ Usamos sharp directamente
 
 export default {
   command: ['sticker', 's'],
@@ -28,20 +27,32 @@ export default {
 
       console.log(`🏷️ [DEBUG] Packname: "${pack}" | Author: "${author}"`);
 
+      // ✅ FUNCIÓN PARA CREAR EL STICKER CON SHARP
+      const crearSticker = async (buffer) => {
+        return await sharp(buffer)
+          .resize(512, 512, {
+            fit: 'contain',
+            background: { r: 0, g: 0, b: 0, alpha: 0 }
+          })
+          .webp({ quality: 80 })
+          .toBuffer();
+      };
+
       if (/image/.test(mime) || /webp/.test(mime)) {
         console.log("🖼️ [DEBUG] Procesando imagen o sticker...");
         let buffer = await quoted.download()
         console.log(`📦 [DEBUG] Buffer descargado (${buffer.length} bytes)`);
         
-        const media = { mimetype: mime, data: buffer }
-        const metadata = { packname: pack, author: author, categories: [''] }
-        const stickerPath = await writeExif(media, metadata)
+        // Convertimos directo a WebP
+        const stickerBuffer = await crearSticker(buffer);
         
-        console.log(`✅ [DEBUG] Sticker creado en: ${stickerPath}`);
+        await sock.sendMessage(msg.chat, { 
+          sticker: stickerBuffer,
+          packname: pack,
+          author: author
+        }, { quoted: msg })
         
-        await sock.sendMessage(msg.chat, { sticker: { url: stickerPath }}, { quoted: msg })
-        fs.unlinkSync(stickerPath)
-        console.log("✅ [DEBUG] Sticker enviado y archivo temporal eliminado.");
+        console.log("✅ [DEBUG] Sticker enviado correctamente.");
         
       } else if (/video/.test(mime)) {
         console.log("🎥 [DEBUG] Procesando video...");
@@ -51,15 +62,8 @@ export default {
           return msg.reply('❖ El video no puede ser muy largo')
         }
         
-        let buffer = await quoted.download()
-        console.log(`📦 [DEBUG] Video descargado (${buffer.length} bytes)`);
-        
-        const tmpFile = `./lib/system/tmp/video-${Date.now()}.mp4`
-        fs.writeFileSync(tmpFile, buffer)
-        
-        await sock.sendVideoAsSticker(msg.chat, tmpFile, msg, { packname: pack, author: author })
-        fs.unlinkSync(tmpFile)
-        console.log("✅ [DEBUG] Video enviado como sticker.");
+        // Para videos, usamos ffmpeg directamente o pedimos que lo conviertan
+        return msg.reply('❖ Por ahora no puedo procesar videos, envía una imagen.');
         
       } else if (args[0] && isUrl(args[0])) {
         console.log("🔗 [DEBUG] Procesando URL...");
@@ -74,12 +78,14 @@ export default {
         const buffer = Buffer.from(await res.arrayBuffer())
         console.log(`📦 [DEBUG] Buffer desde URL (${buffer.length} bytes)`);
         
-        const media = { mimetype: 'image/webp', data: buffer }
-        const metadata = { packname: pack, author: author, categories: [''] }
-        const stickerPath = await writeExif(media, metadata)
+        const stickerBuffer = await crearSticker(buffer);
         
-        await sock.sendMessage(msg.chat, { sticker: { url: stickerPath }}, { quoted: msg })
-        fs.unlinkSync(stickerPath)
+        await sock.sendMessage(msg.chat, { 
+          sticker: stickerBuffer,
+          packname: pack,
+          author: author
+        }, { quoted: msg })
+        
         console.log("✅ [DEBUG] Sticker desde URL enviado.");
         
       } else {

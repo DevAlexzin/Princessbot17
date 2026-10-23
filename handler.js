@@ -260,6 +260,9 @@ INSTRUCCIONES ESTRICTAS:
     const buttonId = msg.message.buttonsResponseMessage.selectedButtonId;
     const chatId = msg.key.remoteJid;
 
+    // ✅ LOG PARA VER SI LLEGA EL BOTÓN
+    console.log(`🔍 [PATRO DEBUG] Botón presionado. ID: "${buttonId}"`);
+
     if (buttonId && buttonId.startsWith('patro_entre_')) {
       console.log(`✅ [PATRO] Botón de entrega presionado: ${buttonId}`);
       
@@ -271,7 +274,7 @@ INSTRUCCIONES ESTRICTAS:
       const index = patrocinios.findIndex(p => p.id === idPatro);
       
       if (index === -1) {
-        await sock.sendMessage(chatId, { text: '❌ No se encontró el patrocinio.' }, { quoted: msg });
+        await sock.sendMessage(chatId, { text: '❌ No se encontró el patrocinio en la base de datos.' }, { quoted: msg });
         return;
       }
 

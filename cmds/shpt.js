@@ -50,7 +50,7 @@ export default {
   command: ['ship', 'amor', 'love'],
   category: 'fun',
   botAdmin: false,
-  run: async ({ msg, sock }) => {
+  run: async ({ msg, sock, text }) => {
     try {
       if (!msg.isGroup) return msg.reply('《✤》 Este comando solo funciona en grupos.');
 
@@ -58,7 +58,7 @@ export default {
       const unicas = [...new Set(menciones)];
 
       if (unicas.length !== 2) {
-        return msg.reply(`💘 *¡SHIP!* 💘\n\n> Menciona a dos personas para crear su tarjeta.\n\n*📌 Ejemplo:* \`.ship @persona1 @persona2\``);
+        return msg.reply(`💘 *¡SHIP!* 💘\n\n> Menciona a dos personas para crear su tarjeta.\n\n*📌 Ejemplo:* \`.ship @persona1 @persona2 Nombre1 Nombre2\``);
       }
 
       const [id1, id2] = unicas;
@@ -67,32 +67,28 @@ export default {
       const porcentaje = Math.floor(Math.random() * 101);
       const frase = frases.find(f => porcentaje >= f.min && porcentaje <= f.max).texto;
 
-      // ✅ LA SOLUCIÓN: Extraer los nombres del texto del mensaje
-      // En WhatsApp, cuando mencionas a alguien, el texto original viene como "@Nombre"
-      let textoMensaje = msg.text || msg.body || '';
+      // ✅ DETECCIÓN DE NOMBRES MANUALES
+      // Si el usuario escribe ".ship @Rocio @Emy Rocio Emy", los nombres están en el texto
+      let nombresManuales = [];
       
-      // Buscamos los nombres en el texto del mensaje (ej: ".ship @Rocio @Emy")
-      const nombresEnTexto = textoMensaje.match(/@[\w\s]+/g) || [];
-      
+      // Limpiamos el texto de las menciones y comandos
+      let textoLimpio = (text || '').replace(/@\d{8,15}/g, '').trim();
+      // Si quedan palabras, las usamos como nombres
+      if (textoLimpio) {
+        nombresManuales = textoLimpio.split(' ').filter(p => p.length > 0);
+      }
+
       let nombres = [];
       
       for (let i = 0; i < unicas.length; i++) {
         let nombreFinal = null;
 
-        // 1. Intentar sacar el nombre del texto original
-        if (nombresEnTexto[i]) {
-          nombreFinal = nombresEnTexto[i].replace('@', '').trim();
+        // 1. Si el usuario escribió el nombre manualmente, lo usamos
+        if (nombresManuales[i]) {
+          nombreFinal = nombresManuales[i];
         }
 
-        // 2. Si no hay en el texto, buscar en el contexto del mensaje
-        if (!nombreFinal) {
-          const contextInfo = msg.message?.extendedTextMessage?.contextInfo;
-          if (contextInfo && contextInfo.mentionedJid) {
-            // No hay nombres directos en contextInfo, pero podemos buscar en los datos del grupo
-          }
-        }
-
-        // 3. Si aún no hay nombre, usar el número como último recurso
+        // 2. Si no, usamos el número como último recurso
         if (!nombreFinal) {
           nombreFinal = unicas[i].split('@')[0].split(':')[0];
         }
@@ -100,7 +96,7 @@ export default {
         nombres.push(nombreFinal.substring(0, 20));
       }
 
-      console.log(`💘 [SHIP] Nombres detectados: "${nombres[0]}" y "${nombres[1]}"`);
+      console.log(`💘 [SHIP] Nombres: "${nombres[0]}" y "${nombres[1]}"`);
 
       // ✅ FOTOS
       let foto1 = null, foto2 = null;

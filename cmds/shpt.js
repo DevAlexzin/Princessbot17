@@ -50,7 +50,7 @@ export default {
   command: ['ship', 'amor', 'love'],
   category: 'fun',
   botAdmin: false,
-  run: async ({ msg, sock, participants, groupMetadata }) => {
+  run: async ({ msg, sock }) => {
     try {
       if (!msg.isGroup) return msg.reply('《✤》 Este comando solo funciona en grupos.');
 
@@ -67,29 +67,35 @@ export default {
       const porcentaje = Math.floor(Math.random() * 101);
       const frase = frases.find(f => porcentaje >= f.min && porcentaje <= f.max).texto;
 
-      // ✅ DETECCIÓN DE NOMBRES CON getName Y PARTICIPANTS
+      // ✅ LA SOLUCIÓN: Extraer los nombres del texto del mensaje
+      // En WhatsApp, cuando mencionas a alguien, el texto original viene como "@Nombre"
+      let textoMensaje = msg.text || msg.body || '';
+      
+      // Buscamos los nombres en el texto del mensaje (ej: ".ship @Rocio @Emy")
+      const nombresEnTexto = textoMensaje.match(/@[\w\s]+/g) || [];
+      
       let nombres = [];
       
-      for (const id of unicas) {
+      for (let i = 0; i < unicas.length; i++) {
         let nombreFinal = null;
-        
-        // 1. Intentar con sock.getName (La forma más confiable en Baileys)
-        if (typeof sock.getName === 'function') {
-          try { 
-            nombreFinal = await sock.getName(id); 
-          } catch (e) {}
+
+        // 1. Intentar sacar el nombre del texto original
+        if (nombresEnTexto[i]) {
+          nombreFinal = nombresEnTexto[i].replace('@', '').trim();
         }
 
-        // 2. Si falla, buscar en los participantes del grupo
-        if (!nombreFinal && participants) {
-          const p = participants.find(x => x.id === id || x.jid === id || x.lid === id || x.phoneNumber === id);
-          if (p) {
-            nombreFinal = p.name || p.notify || p.vname || p.verifiedName;
+        // 2. Si no hay en el texto, buscar en el contexto del mensaje
+        if (!nombreFinal) {
+          const contextInfo = msg.message?.extendedTextMessage?.contextInfo;
+          if (contextInfo && contextInfo.mentionedJid) {
+            // No hay nombres directos en contextInfo, pero podemos buscar en los datos del grupo
           }
         }
 
-        // 3. Si aún no hay nombre, usar "Sin nombre"
-        if (!nombreFinal) nombreFinal = 'Sin nombre';
+        // 3. Si aún no hay nombre, usar el número como último recurso
+        if (!nombreFinal) {
+          nombreFinal = unicas[i].split('@')[0].split(':')[0];
+        }
 
         nombres.push(nombreFinal.substring(0, 20));
       }

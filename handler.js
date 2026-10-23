@@ -1,8 +1,3 @@
-Aquí tienes el **`handler.js` completo y actualizado**, con el nuevo manejador de la lista de Pokecard integrado, manteniendo intactos todos los otros sistemas (ahorcado, IA, ruleta, botones de ganadores, etc.).
-
-### 📁 `handler.js`
-
-```javascript
 import db from "#db"
 import ws from 'ws';
 import moment from 'moment';
@@ -545,4 +540,3 @@ INSTRUCCIONES ESTRICTAS:
   }
 
 };
-```

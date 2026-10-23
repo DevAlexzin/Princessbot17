@@ -7,7 +7,7 @@ import path from 'path';
 import gradient from 'gradient-string';
 import { getCachedMeta, setCachedMeta } from '#serialize';
 
-// ✅ Función del dibujo del ahorcado para usarla en el handler
+// ✅ Función del dibujo del ahorcado
 function mostrarAhorcado(intentos) {
     const estados = [
 ` ____ \n |  |\n |  O\n | /|\\\n_|_`,
@@ -41,11 +41,10 @@ export default async (sock, msg) => {
       const juego = global.ahorcado[sender];
       const texto = msg.text.trim().toLowerCase();
 
-      // Verificamos si es una letra (A-Z)
       if (/^[a-zñ]$/i.test(texto)) {
         console.log(`🔍 [AHORCADO] Letra recibida: ${texto}`);
 
-        let letra = texto.normalize("NFD").replace(/[\u0300-\u036f]/g, ""); // Quita acentos
+        let letra = texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
         if (juego.letrasAdivinadas.includes(letra)) {
           await sock.sendMessage(msg.chat, { text: `❌ Ya intentaste la letra "${letra}".` }, { quoted: msg });
@@ -56,24 +55,20 @@ export default async (sock, msg) => {
 
         if (!juego.palabra.includes(letra)) {
           juego.intentos--;
-          console.log(`❌ Letra incorrecta. Quedan ${juego.intentos} intentos.`);
         }
 
-        // Función para mostrar la palabra oculta
         let palabraOculta = "";
         for (const l of juego.palabra) {
           palabraOculta += juego.letrasAdivinadas.includes(l) ? l + " " : "_ ";
         }
         palabraOculta = palabraOculta.trim();
 
-        // Verificar si perdió
         if (juego.intentos <= 0) {
           delete global.ahorcado[sender];
           await sock.sendMessage(msg.chat, { text: `❌ ¡Perdiste! La palabra era: *${juego.palabra}*` }, { quoted: msg });
           return;
         }
 
-        // Verificar si ganó
         if (!palabraOculta.includes("_")) {
           let exp = Math.floor(Math.random() * 300);
           if (juego.palabra.length >= 8) exp = Math.floor(Math.random() * 3500);
@@ -83,7 +78,6 @@ export default async (sock, msg) => {
           return;
         }
 
-        // Mostrar estado actual
         let dibujo = mostrarAhorcado(juego.intentos);
         
         await sock.sendMessage(msg.chat, {
@@ -222,6 +216,45 @@ INSTRUCCIONES ESTRICTAS:
   }
   // ============================================================
   // FIN MANEJADOR DE IA
+  // ============================================================
+
+  // ============================================================
+  // 🃏 MANEJADOR DE LISTA DE POKECARD
+  // ============================================================
+  if (msg.message?.listResponseMessage) {
+    const rowId = msg.message.listResponseMessage.singleSelectReply?.selectedRowId;
+    const chatId = msg.key.remoteJid;
+
+    if (rowId && rowId.startsWith('poke_')) {
+      console.log(`🔍 [POKECARD] Carta seleccionada: ${rowId}`);
+      
+      const index = parseInt(rowId.replace('poke_', ''));
+      const cartas = global.pokecardCache?.[chatId];
+
+      if (cartas && cartas[index]) {
+        const carta = cartas[index];
+        const nombre = carta.name || 'Carta';
+        const imagenUrl = carta.image || carta.images?.large || carta.card_images?.[0]?.image_url;
+        const tipo = carta.type || 'Desconocido';
+        const hp = carta.hp || '?';
+        const rareza = carta.rarity || 'Común';
+
+        if (imagenUrl) {
+          await sock.sendMessage(chatId, {
+            image: { url: imagenUrl },
+            caption: `🃏 *${nombre}*\n\n> 🧬 *Tipo:* ${tipo}\n> ❤️ *HP:* ${hp}\n> ⭐ *Rareza:* ${rareza}`
+          }, { quoted: msg });
+        } else {
+          await sock.sendMessage(chatId, { text: `❌ No se encontró la imagen de *${nombre}*.` }, { quoted: msg });
+        }
+      } else {
+        await sock.sendMessage(chatId, { text: '❌ La sesión de búsqueda expiró. Vuelve a usar `.pokecard`. ' }, { quoted: msg });
+      }
+      return;
+    }
+  }
+  // ============================================================
+  // FIN MANEJADOR DE LISTA DE POKECARD
   // ============================================================
 
   // ============================================================

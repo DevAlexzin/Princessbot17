@@ -50,7 +50,7 @@ export default {
   command: ['ship', 'amor', 'love'],
   category: 'fun',
   botAdmin: false,
-  run: async ({ msg, sock, participants }) => { // ✅ Agregamos participants
+  run: async ({ msg, sock }) => {
     try {
       if (!msg.isGroup) return msg.reply('《✤》 Este comando solo funciona en grupos.');
 
@@ -67,33 +67,30 @@ export default {
       const porcentaje = Math.floor(Math.random() * 101);
       const frase = frases.find(f => porcentaje >= f.min && porcentaje <= f.max).texto;
 
-      // ✅ SOLUCIÓN: Buscar por LID y obtener el número de teléfono real para encontrar el nombre
+      // ✅ NUEVA LÓGICA: Usar sock.getName() que es la función nativa de Baileys
       let nombres = [];
       
       for (const id of unicas) {
         let nombreFinal = null;
         
-        if (participants) {
-          // 1. Buscamos al participante por su LID (el ID que nos da la mención)
-          const persona = participants.find(p => 
-            p.id === id || 
-            p.lid === id || 
-            p.jid === id || 
-            p.phoneNumber === id
-          );
-
-          if (persona) {
-            // 2. Intentamos sacar el nombre de todos los campos posibles
-            nombreFinal = persona.name || persona.notify || persona.vname || persona.verifiedName;
-            
-            // 3. Si no hay nombre, usamos su número real (phoneNumber) en lugar del LID
-            if (!nombreFinal && persona.phoneNumber) {
-              nombreFinal = persona.phoneNumber.split('@')[0];
-            }
+        // 1. Intentar con sock.getName (la forma más confiable de obtener el pushName)
+        if (typeof sock.getName === 'function') {
+          try { 
+            nombreFinal = await sock.getName(id); 
+          } catch (e) {
+            console.log(`⚠️ [SHIP] sock.getName falló para ${id}`);
           }
         }
 
-        // 4. Si aún no hay nombre, usamos el LID como último recurso
+        // 2. Si falla, intentar buscar en el mensaje original
+        if (!nombreFinal) {
+          try {
+            const participant = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.find(m => m === id);
+            // A veces el nombre viene en un objeto de "participants" dentro del contexto
+          } catch (e) {}
+        }
+
+        // 3. Si aún no hay nombre, usar el número como último recurso
         if (!nombreFinal) {
           nombreFinal = id.split('@')[0].split(':')[0];
         }
@@ -101,7 +98,7 @@ export default {
         nombres.push(nombreFinal.substring(0, 20));
       }
 
-      console.log(`💘 [SHIP] Nombres: "${nombres[0]}" y "${nombres[1]}"`);
+      console.log(`💘 [SHIP] Nombres detectados: "${nombres[0]}" y "${nombres[1]}"`);
 
       // ✅ FOTOS
       let foto1 = null, foto2 = null;

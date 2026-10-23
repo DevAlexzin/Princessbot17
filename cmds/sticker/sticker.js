@@ -1,7 +1,7 @@
 import db from "#db"
 import fs from 'fs'
 import fetch from 'node-fetch'
-import exif from '../../lib/exif.js'
+import exif from '../lib/exif.js' // ✅ Cambiado a un solo ../
 const { writeExif } = exif
 
 export default {

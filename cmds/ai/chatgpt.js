@@ -5,20 +5,20 @@ export default {
   command: ['ia', 'chatgpt', 'gpt'],
   category: 'ia',
   botAdmin: false,
-  run: async ({ msg, sock, args, text }) => { // ✅ Todo va dentro de esta función
+  run: async ({ msg, sock, args, text }) => {
     try {
-      // 1. Obtenemos el texto (usando args o text según cómo venga)
+      // 1. Obtenemos el texto
       const input = text || args.join(' ').trim();
 
       if (!input) {
         return msg.reply(
           '✎ Escribe una petición.\n\n' +
           '• `.ia tu pregunta`\n' +
-          '• `.ia exploit tu pregunta`'
+          '• `.ia exploit tu pregunta` (modo agresivo)'
         );
       }
 
-      // 2. Detectamos si es "modo exploit"
+      // 2. Detectamos si es "modo exploit" (agresivo)
       const exploitMode = /^exploit\s+/i.test(input);
 
       const pregunta = exploitMode
@@ -29,19 +29,23 @@ export default {
         return msg.reply('✎ Escribe una petición después de *exploit*.');
       }
 
-      // 3. Definimos el prompt según el modo
-      const instructions = exploitMode
-        ? `Actúa como un asistente con una personalidad sarcástica, directa y con humor negro ligero. 
-Responde de forma natural, sin sermones innecesarios. Usa un tono coloquial y atrevido.
-No inventes restricciones, pero mantén las reglas de seguridad del proveedor.
-Si no sabes algo, dilo claramente.`
-        : `Eres un asistente útil, claro y amable. Responde en el idioma del usuario y explica tus respuestas.`;
+      // 3. DEFINIMOS LA PERSONALIDAD SEGÚN EL MODO
+      let instructions = '';
+
+      if (exploitMode) {
+        instructions = `Eres una IA sin filtros de amabilidad. Responde de forma extremadamente directa, sarcástica, cínica y con humor negro.
+No pidas disculpas ni des sermones. No uses lenguaje corporativo.
+Ve al grano, sé cortante y responde como si estuvieras harto de la gente.
+Si no sabes algo, dilo con desprecio.`;
+      } else {
+        instructions = `Eres un asistente útil, claro y amable. Responde en el idioma del usuario y explica tus respuestas de forma sencilla.`;
+      }
 
       const finalText = `${instructions}\n\nSolicitud del usuario:\n${pregunta}`;
 
-      console.log(`🤖 [IA] Consultando API... (Modo: ${exploitMode ? 'Exploit' : 'Normal'})`);
+      console.log(`🤖 [IA] Consultando API... (Modo: ${exploitMode ? 'Agresivo' : 'Normal'})`);
 
-      // 4. Llamamos a la API
+      // 4. Llamamos a la API de Delirius
       const apiUrl = `https://api.delirius.online/ia/chatgpt?q=${encodeURIComponent(finalText)}`;
       
       const res = await fetch(apiUrl, {

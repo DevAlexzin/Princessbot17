@@ -1,58 +1,83 @@
 import db from "#db"
 import fs from 'fs'
-import fetch from 'node-fetch'
-import exif from '../lib/exif.js' // ✅ CORREGIDO: Solo un ../
+import exif from '../../lib/exif.js'
 const { writeExif } = exif
 
 export default {
-  command: ['sticker', 's'],
+  command: ['robars'],
   category: 'stickers',
-  run: async ({ msg, sock, args, command, text, usedPrefix: prefix }) => {
+  botAdmin: false,
+
+  run: async ({ msg, sock, args }) => {
     try {
-      const quoted = msg.quoted ? msg.quoted : msg
-      const mime = (quoted.msg || quoted).mimetype || ''
-      let user = await db.getUser(msg.sender)
-      const name = user.name
-      let texto1 = user.metadatos || `S'Princess Bot`
-      let texto2 = user.metadatos2 || `@${name}`
+      // 🔍 Verificar que el mensaje sea una respuesta
+      const quoted = msg.quoted
 
-      let marca = args.join(' ').trim().split(/[\u2022|]/).map(part => part.trim())
-      let pack = marca[0] || texto1
-      let author = marca.length > 1 ? marca[1] : texto2
-
-      if (/image/.test(mime) || /webp/.test(mime)) {
-        let buffer = await quoted.download()
-        const media = { mimetype: mime, data: buffer }
-        const metadata = { packname: pack, author: author, categories: [''] }
-        const stickerPath = await writeExif(media, metadata)
-        await sock.sendMessage(msg.chat, { sticker: { url: stickerPath }}, { quoted: msg })
-        fs.unlinkSync(stickerPath)
-      } else if (/video/.test(mime)) {
-        if ((quoted.msg || quoted).seconds > 20) return msg.reply('❖ El video no puede ser muy largo')
-        let buffer = await quoted.download()
-        const tmpFile = `./lib/system/tmp/video-${Date.now()}.mp4`
-        fs.writeFileSync(tmpFile, buffer)
-        await sock.sendVideoAsSticker(msg.chat, tmpFile, msg, { packname: pack, author: author })
-        fs.unlinkSync(tmpFile)
-      } else if (args[0] && isUrl(args[0])) {
-        const url = args[0]
-        const res = await fetch(url)
-        if (!res.ok) return msg.reply('❖ No pude descargar ese archivo desde la URL.')
-        const buffer = Buffer.from(await res.arrayBuffer())
-        const media = { mimetype: 'image/webp', data: buffer }
-        const metadata = { packname: pack, author: author, categories: [''] }
-        const stickerPath = await writeExif(media, metadata)
-        await sock.sendMessage(msg.chat, { sticker: { url: stickerPath }}, { quoted: msg })
-        fs.unlinkSync(stickerPath)
-      } else {
-        return sock.reply(msg.chat, `❀ Por favor, envía una imagen, video o URL para hacer un sticker.`, msg)
+      if (!quoted) {
+        return await sock.sendMessage(
+          msg.chat,
+          { text: '❖ Responde a un sticker para robarlo 👀' },
+          { quoted: msg }
+        )
       }
-    } catch (e) {
-      return msg.reply(msgglobal)
-    }
-  }
-}
 
-const isUrl = (text) => {
-  return /^https?:\/\/.+/i.test(text)
+      // 🔍 Verificar que sea un sticker WebP
+      const mime = (quoted.msg || quoted).mimetype || ''
+
+      if (!/webp/i.test(mime)) {
+        return await sock.sendMessage(
+          msg.chat,
+          { text: '❖ Responde a un sticker válido 👀' },
+          { quoted: msg }
+        )
+      }
+
+      // 📥 Descargar el sticker citado
+      let buffer = await quoted.download()
+
+      if (!buffer) {
+        return await sock.sendMessage(
+          msg.chat,
+          { text: '❖ No pude descargar el sticker 😢' },
+          { quoted: msg }
+        )
+      }
+
+      // 📝 Obtener y limpiar el nombre del usuario
+      const rawName = msg.pushName || 'Usuario'
+      const packname = rawName
+        .replace(/[^\p{L}\p{N}\s]/gu, '')
+        .trim() || 'Usuario'
+
+      // 🔹 Autor
+      const author = 'Oculto por privacidad'
+
+      // 🛠️ Añadir metadatos al sticker usando writeExif (igual que tu comando sticker.js)
+      const media = { mimetype: mime, data: buffer }
+      const metadata = { packname: packname, author: author, categories: [''] }
+      
+      const stickerPath = await writeExif(media, metadata)
+
+      // 📤 Enviar el sticker
+      await sock.sendMessage(
+        msg.chat,
+        {
+          sticker: { url: stickerPath }
+        },
+        { quoted: msg }
+      )
+
+      // 🧹 Limpiamos el archivo temporal
+      fs.unlinkSync(stickerPath)
+
+    } catch (e) {
+      console.error('❌ [ERROR] Comando robar:', e)
+
+      await sock.sendMessage(
+        msg.chat,
+        { text: '❌ Ocurrió un error al procesar el sticker.' },
+        { quoted: msg }
+      )
+    }
+  },
 }

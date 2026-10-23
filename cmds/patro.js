@@ -52,6 +52,7 @@ export default {
       
       await db.updateChat(msg.chat, dbKey, patrocinios);
 
+      // ✅ Diseño exacto
       const patroMsg = `ꔛㅤׅ 🏹 𝗣𝗮𝘁𝗿𝗼
 ㅤ    ㅤ╰ ▸ › ${bannerOficial}
 
@@ -66,11 +67,9 @@ export default {
 ु   ᜊ 🪩 𝓑𝓪𝓷𝓷𝓮𝓻𝓼
 ╴ᨳ ⸝⸝ ${banners}
 
- ┈─˖Ი𐑼⋆ 𝓔𝓷𝓽𝓻𝓮𝓰𝓪𝓭𝓸
+ ┈─˖Ი𐑼⋆ 𝓔𝓷𝓽𝓻𝓮𝓰𝓪𝓭𝓸`;
 
-> 📌 Estado: *Pendiente*`;
-
-      // ✅ Enviamos el mensaje CON el botón
+      // ✅ ENVIAMOS EL MENSAJE CON EL BOTÓN (Estructura correcta de Baileys)
       await sock.sendMessage(msg.chat, {
         text: patroMsg.trim(),
         footer: 'Princess Bot',
@@ -84,7 +83,7 @@ export default {
         headerType: 1
       }, { quoted: msg });
 
-      console.log(`✅ [PATRO] Patrocinio ${idPatro} creado.`);
+      console.log(`✅ [PATRO] Patrocinio ${idPatro} creado con botón.`);
 
     } catch (e) {
       console.error("❌ [PATRO ERROR]:", e.message);

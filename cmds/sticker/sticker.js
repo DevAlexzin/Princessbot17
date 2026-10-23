@@ -1,58 +1,149 @@
 import db from "#db"
-import fs from 'fs'
+import sharp from 'sharp'
 import fetch from 'node-fetch'
-import exif from '../../lib/exif.js'
-const { writeExif } = exif
+
+const frases = [
+  { min: 0, max: 15, texto: 'Cupido vio esto y pidió vacaciones. 😂💔' },
+  { min: 16, max: 35, texto: 'Hay amor... pero solo en los sueños. 😭💕' },
+  { min: 36, max: 55, texto: 'Podrían ser algo... si alguien se declara. 👀❤️' },
+  { min: 56, max: 75, texto: 'Aquí hay química y unos cuantos nervios. 🥰💘' },
+  { min: 76, max: 90, texto: '¡Cupido está haciendo horas extra por ustedes! 💖' },
+  { min: 91, max: 100, texto: '¡BODA, BODA! Ya elegimos los padrinos. 💍😂' }
+];
+
+function escaparXML(texto = '') {
+  return String(texto)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+async function generarAvatar(nombre, color) {
+  const inicial = nombre ? nombre.charAt(0).toUpperCase() : '?';
+  const svg = `
+    <svg width="250" height="250" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="125" cy="125" r="125" fill="${color}" />
+      <text x="50%" y="50%" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="100" fill="#ffffff" font-weight="bold">${escaparXML(inicial)}</text>
+    </svg>`;
+  return await sharp(Buffer.from(svg)).png().toBuffer();
+}
+
+async function procesarFoto(url) {
+  try {
+    if (!url) return null;
+    const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+    if (!res.ok) return null;
+    const buffer = Buffer.from(await res.arrayBuffer());
+    const metadata = await sharp(buffer).metadata();
+    if (!metadata.width) return null;
+    return await sharp(buffer)
+      .resize(250, 250)
+      .composite([{ input: Buffer.from(`<svg><circle cx="125" cy="125" r="125" /></svg>`), blend: 'dest-in' }])
+      .png()
+      .toBuffer();
+  } catch (e) { return null; }
+}
 
 export default {
-  command: ['sticker', 's'],
-  category: 'stickers',
-  run: async ({ msg, sock, args, command, text, usedPrefix: prefix }) => {
+  command: ['ship', 'amor', 'love'],
+  category: 'fun',
+  botAdmin: false,
+  run: async ({ msg, sock }) => {
     try {
-      const quoted = msg.quoted ? msg.quoted : msg
-      const mime = (quoted.msg || quoted).mimetype || ''
-      let user = await db.getUser(msg.sender)
-      const name = user.name
-      let texto1 = user.metadatos || `S'Princess Bot`
-      let texto2 = user.metadatos2 || `@${name}`
+      if (!msg.isGroup) return msg.reply('《✤》 Este comando solo funciona en grupos.');
 
-      let marca = args.join(' ').trim().split(/[\u2022|]/).map(part => part.trim())
-      let pack = marca[0] || texto1
-      let author = marca.length > 1 ? marca[1] : texto2
+      const menciones = msg.mentionedJid || [];
+      const unicas = [...new Set(menciones)];
 
-      if (/image/.test(mime) || /webp/.test(mime)) {
-        let buffer = await quoted.download()
-        const media = { mimetype: mime, data: buffer }
-        const metadata = { packname: pack, author: author, categories: [''] }
-        const stickerPath = await writeExif(media, metadata)
-        await sock.sendMessage(msg.chat, { sticker: { url: stickerPath }}, { quoted: msg })
-        fs.unlinkSync(stickerPath)
-      } else if (/video/.test(mime)) {
-        if ((quoted.msg || quoted).seconds > 20) return msg.reply('❖ El video no puede ser muy largo')
-        let buffer = await quoted.download()
-        const tmpFile = `./lib/system/tmp/video-${Date.now()}.mp4`
-        fs.writeFileSync(tmpFile, buffer)
-        await sock.sendVideoAsSticker(msg.chat, tmpFile, msg, { packname: pack, author: author })
-        fs.unlinkSync(tmpFile)
-      } else if (args[0] && isUrl(args[0])) {
-        const url = args[0]
-        const res = await fetch(url)
-        if (!res.ok) return msg.reply('❖ No pude descargar ese archivo desde la URL.')
-        const buffer = Buffer.from(await res.arrayBuffer())
-        const media = { mimetype: 'image/webp', data: buffer }
-        const metadata = { packname: pack, author: author, categories: [''] }
-        const stickerPath = await writeExif(media, metadata)
-        await sock.sendMessage(msg.chat, { sticker: { url: stickerPath }}, { quoted: msg })
-        fs.unlinkSync(stickerPath)
-      } else {
-        return sock.reply(msg.chat, `❀ Por favor, envía una imagen, video o URL para hacer un sticker.`, msg)
+      if (unicas.length !== 2) {
+        return msg.reply(`💘 *¡SHIP!* 💘\n\n> Menciona a dos personas para crear su tarjeta.\n\n*📌 Ejemplo:* \`.ship @persona1 @persona2\``);
       }
+
+      const [id1, id2] = unicas;
+      if (id1 === id2) return msg.reply('😂 ¡No puedes emparejar a una persona consigo misma!');
+
+      const porcentaje = Math.floor(Math.random() * 101);
+      const frase = frases.find(f => porcentaje >= f.min && porcentaje <= f.max).texto;
+
+      // ✅ LA SOLUCIÓN: BUSCAR EN LA BASE DE DATOS DE USUARIOS (Igual que el sticker)
+      let nombres = [];
+      
+      for (const id of unicas) {
+        let nombreFinal = null;
+
+        try {
+          // 1. Buscamos al usuario en la base de datos
+          const userDB = await db.getUser(id);
+          
+          if (userDB && userDB.name) {
+            nombreFinal = userDB.name;
+          }
+        } catch (e) {
+          console.log(`⚠️ [SHIP] No se pudo buscar en DB para ${id}`);
+        }
+
+        // 2. Si no hay nombre en la DB, usamos el número (último recurso)
+        if (!nombreFinal) {
+          nombreFinal = id.split('@')[0].split(':')[0];
+        }
+
+        nombres.push(nombreFinal.substring(0, 20));
+      }
+
+      console.log(`💘 [SHIP] Nombres detectados: "${nombres[0]}" y "${nombres[1]}"`);
+
+      // ✅ FOTOS
+      let foto1 = null, foto2 = null;
+      try {
+        const url1 = await sock.profilePictureUrl(id1, 'image');
+        foto1 = await procesarFoto(url1);
+      } catch (e) {}
+      try {
+        const url2 = await sock.profilePictureUrl(id2, 'image');
+        foto2 = await procesarFoto(url2);
+      } catch (e) {}
+
+      if (!foto1) foto1 = await generarAvatar(nombres[0], '#ff477e');
+      if (!foto2) foto2 = await generarAvatar(nombres[1], '#8e44ad');
+
+      // ✅ IMAGEN FINAL
+      const svgFondo = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="900" height="600" viewBox="0 0 900 600">
+        <rect width="900" height="600" fill="#ffb3c6" />
+        <g fill="#ff809f" opacity="0.4">
+            <text x="100" y="100" font-size="40">❤️</text>
+            <text x="800" y="150" font-size="30">❤️</text>
+            <text x="150" y="500" font-size="35">❤️</text>
+            <text x="750" y="450" font-size="45">❤️</text>
+            <text x="450" y="50" font-size="25">❤️</text>
+        </g>
+        <text x="450" y="80" text-anchor="middle" font-family="Arial" font-size="45" font-weight="bold" fill="#d6336c">LOVE MATCH</text>
+        <text x="450" y="330" text-anchor="middle" font-family="Arial" font-size="120" fill="#ff1744">❤️</text>
+        <text x="450" y="450" text-anchor="middle" font-family="Arial" font-size="65" font-weight="bold" fill="#ffffff">${porcentaje}%</text>
+        <text x="200" y="550" text-anchor="middle" font-family="Arial" font-size="28" font-weight="bold" fill="#63305b">${escaparXML(nombres[0])}</text>
+        <text x="700" y="550" text-anchor="middle" font-family="Arial" font-size="28" font-weight="bold" fill="#63305b">${escaparXML(nombres[1])}</text>
+        <text x="450" y="580" text-anchor="middle" font-family="Arial" font-size="18" fill="#8e557a">${escaparXML(frase)}</text>
+      </svg>`;
+
+      const imagenFinal = await sharp(Buffer.from(svgFondo))
+        .composite([
+          { input: foto1, top: 150, left: 75 },
+          { input: foto2, top: 150, left: 575 }
+        ])
+        .png()
+        .toBuffer();
+
+      await sock.sendMessage(msg.chat, {
+        image: imagenFinal,
+        caption: '💖 ¡Aquí está su tarjeta de pareja ficticia!',
+        mentions: unicas
+      }, { quoted: msg });
+
     } catch (e) {
-      return msg.reply(msgglobal)
+      console.error("❌ [SHIP ERROR]:", e.message);
+      msg.reply('❌ Ocurrió un error al crear la tarjeta.');
     }
   }
-}
-
-const isUrl = (text) => {
-  return /^https?:\/\/.+/i.test(text)
-}
+};

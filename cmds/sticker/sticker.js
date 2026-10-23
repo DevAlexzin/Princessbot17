@@ -1,7 +1,7 @@
 import db from "#db"
 import fs from 'fs'
 import fetch from 'node-fetch'
-import exif from '../../../lib/exif.js' // ✅ TRES niveles atrás para llegar a la raíz
+import exif from '../../lib/exif.js' // ✅ DOS niveles atrás es la ruta correcta
 const { writeExif } = exif
 
 export default {

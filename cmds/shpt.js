@@ -11,8 +11,6 @@ const frases = [
   { min: 91, max: 100, texto: '¡BODA, BODA! Ya elegimos los padrinos. 💍😂' }
 ];
 
-const FOTO_DEFECTO = 'https://i.pinimg.com/736x/8f/c2/85/8fc285f8b5d0bf7fb8f8e9d4f2b5e3a1.jpg'; 
-
 function escaparXML(texto = '') {
   return String(texto)
     .replace(/&/g, '&amp;')
@@ -22,24 +20,37 @@ function escaparXML(texto = '') {
     .replace(/'/g, '&apos;');
 }
 
-async function fotoRedonda(url) {
+// ✅ Función para crear un avatar si no hay foto (sin usar internet)
+async function generarAvatar(nombre, color) {
+  const inicial = nombre.charAt(0).toUpperCase();
+  const svg = `
+    <svg width="250" height="250" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="125" cy="125" r="125" fill="${color}" />
+      <text x="50%" y="50%" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="100" fill="#ffffff" font-weight="bold">${escaparXML(inicial)}</text>
+    </svg>`;
+  return await sharp(Buffer.from(svg)).png().toBuffer();
+}
+
+// ✅ Función para procesar la foto (si falla, devuelve null)
+async function procesarFoto(url) {
   try {
-    let res = await fetch(url);
-    if (!res.ok) throw new Error();
-    let buffer = Buffer.from(await res.arrayBuffer());
+    if (!url) return null;
+    const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+    if (!res.ok) return null;
+    const buffer = Buffer.from(await res.arrayBuffer());
+    
+    // Verificamos que sea una imagen válida antes de procesarla
+    const metadata = await sharp(buffer).metadata();
+    if (!metadata.width) return null;
+
     return await sharp(buffer)
       .resize(250, 250)
       .composite([{ input: Buffer.from(`<svg><circle cx="125" cy="125" r="125" /></svg>`), blend: 'dest-in' }])
       .png()
       .toBuffer();
   } catch (e) {
-    let res = await fetch(FOTO_DEFECTO);
-    let buffer = Buffer.from(await res.arrayBuffer());
-    return await sharp(buffer)
-      .resize(250, 250)
-      .composite([{ input: Buffer.from(`<svg><circle cx="125" cy="125" r="125" /></svg>`), blend: 'dest-in' }])
-      .png()
-      .toBuffer();
+    console.log(`⚠️ [SHIP] Foto no válida, usando avatar.`);
+    return null;
   }
 }
 
@@ -47,7 +58,7 @@ export default {
   command: ['ship', 'amor', 'love'],
   category: 'fun',
   botAdmin: false,
-  run: async ({ msg, sock }) => {
+  run: async ({ msg, sock, participants }) => {
     try {
       if (!msg.isGroup) return msg.reply('《✤》 Este comando solo funciona en grupos.');
 
@@ -64,59 +75,57 @@ export default {
       const porcentaje = Math.floor(Math.random() * 101);
       const frase = frases.find(f => porcentaje >= f.min && porcentaje <= f.max).texto;
 
-      // ✅ 1. OBTENER LOS NOMBRES DE FORMA MÁS AGRESIVA
+      // ✅ 1. DETECCIÓN DE NOMBRES MEJORADA
       let nombres = [];
       
       for (const id of unicas) {
         let nombreFinal = null;
         
-        // A. Intentar obtener del mensaje original
-        try {
-          const metadata = await sock.groupMetadata(msg.chat);
-          const persona = metadata.participants.find(p => p.id === id || p.lid === id || p.jid === id);
-          
-          if (persona) {
-            nombreFinal = persona.name || persona.notify || persona.vname;
+        // A. Buscar en los participantes del grupo (todos los campos posibles)
+        if (participants) {
+          const p = participants.find(x => x.id === id || x.jid === id || x.lid === id || x.phoneNumber === id);
+          if (p) {
+            nombreFinal = p.name || p.notify || p.vname || p.verifiedName;
           }
-        } catch (e) {}
-
-        // B. Si no hay nombre, intentar obtener con sock.getName (si existe)
-        if (!nombreFinal && typeof sock.getName === 'function') {
-          try {
-            nombreFinal = await sock.getName(id);
-          } catch (e) {}
         }
 
-        // C. Si el usuario que escribe es uno de los mencionados, usar su pushName
+        // B. Si no, intentar con sock.getName
+        if (!nombreFinal && typeof sock.getName === 'function') {
+          try { nombreFinal = await sock.getName(id); } catch (e) {}
+        }
+
+        // C. Si no, usar el pushName si es el mismo usuario
         if (!nombreFinal && id === msg.sender && msg.pushName) {
           nombreFinal = msg.pushName;
         }
 
-        // D. Si aún no hay nombre, usar "Usuario" (NO el número)
-        if (!nombreFinal) {
-          nombreFinal = 'Usuario';
-        }
+        // D. Si no hay nada, usar "Usuario"
+        if (!nombreFinal) nombreFinal = 'Usuario';
 
-        // Limpiamos el nombre para que no sea muy largo
-        nombreFinal = nombreFinal.replace(/[\r\n]/g, ' ').trim().substring(0, 20);
-        nombres.push(nombreFinal);
+        nombres.push(nombreFinal.substring(0, 20));
       }
 
-      console.log(`💘 [SHIP] Nombres detectados: ${nombres[0]} y ${nombres[1]}`);
+      console.log(`💘 [SHIP] Nombres: ${nombres[0]} y ${nombres[1]}`);
 
-      // ✅ 2. OBTENER FOTOS
-      let foto1, foto2;
-      try {
-        let url1 = await sock.profilePictureUrl(id1, 'image');
-        foto1 = await fotoRedonda(url1);
-      } catch (e) { foto1 = await fotoRedonda(FOTO_DEFECTO); }
+      // ✅ 2. OBTENER FOTOS (con manejo de errores)
+      let foto1 = null;
+      let foto2 = null;
 
       try {
-        let url2 = await sock.profilePictureUrl(id2, 'image');
-        foto2 = await fotoRedonda(url2);
-      } catch (e) { foto2 = await fotoRedonda(FOTO_DEFECTO); }
+        const url1 = await sock.profilePictureUrl(id1, 'image');
+        foto1 = await procesarFoto(url1);
+      } catch (e) {}
 
-      // ✅ 3. GENERAR IMAGEN
+      try {
+        const url2 = await sock.profilePictureUrl(id2, 'image');
+        foto2 = await procesarFoto(url2);
+      } catch (e) {}
+
+      // Si no se pudo obtener la foto, generamos un avatar con la inicial
+      if (!foto1) foto1 = await generarAvatar(nombres[0], '#ff477e');
+      if (!foto2) foto2 = await generarAvatar(nombres[1], '#8e44ad');
+
+      // ✅ 3. CREAR IMAGEN
       const svgFondo = `
       <svg xmlns="http://www.w3.org/2000/svg" width="900" height="600" viewBox="0 0 900 600">
         <rect width="900" height="600" fill="#ffb3c6" />
@@ -126,8 +135,6 @@ export default {
             <text x="150" y="500" font-size="35">❤️</text>
             <text x="750" y="450" font-size="45">❤️</text>
             <text x="450" y="50" font-size="25">❤️</text>
-            <text x="50" y="300" font-size="20">❤️</text>
-            <text x="850" y="300" font-size="20">❤️</text>
         </g>
         <text x="450" y="80" text-anchor="middle" font-family="Arial" font-size="45" font-weight="bold" fill="#d6336c">LOVE MATCH</text>
         <text x="450" y="330" text-anchor="middle" font-family="Arial" font-size="120" fill="#ff1744">❤️</text>

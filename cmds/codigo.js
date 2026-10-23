@@ -7,6 +7,11 @@ export default {
   botAdmin: false,
   run: async ({ msg, sock }) => {
     try {
+      console.log("========================================");
+      console.log("💻 [DEBUG] Comando 'codigo' ejecutado.");
+      console.log("========================================");
+
+      // 1. Extraemos el texto del mensaje
       let textoCompleto = msg.text || msg.body || '';
       const consulta = textoCompleto
         .replace(/^[.\/!#]?(codigo|code|programar)\s*/i, '')
@@ -15,56 +20,61 @@ export default {
       if (!consulta) {
         return msg.reply(`💻 *Ayuda de Programación*
 
-*📋 Uso:* \`.codigo tarea\`
+*📋 Uso:* \`.codigo lenguaje tarea\`
 
 *📌 Ejemplos:*
-> \`.codigo comando para kick\`
-> \`.codigo comando para stickers\``);
+> \`.codigo js hola mundo\`
+> \`.codigo python calculadora\`
+> \`.codigo html pagina web\`
+> \`.codigo error TypeError\`
+> \`.codigo regex correo\`
+
+> 💡 *Nota:* El bot usará IA para generar el código.`);
       }
 
       console.log(`💻 [CODIGO] Consulta: ${consulta}`);
 
-      // ✅ PROMPT CORTO Y DIRECTO
-      const prompt = `Actúa como programador de Baileys. Escribe un comando para WhatsApp usando esta estructura:
-import db from "#db"
-export default { command: ['nombre'], run: async ({ msg, sock }) => { /* código aquí */ } }
-Usa msg.reply() y sock.sendMessage(). No uses 'conn' ni 'm'.
-Tarea: ${consulta}`;
+      // 2. Preparamos el Prompt para la IA
+      const promptSistema = `Eres un asistente experto en programación.
+El usuario te pedirá ayuda con código. Debes responder SIEMPRE con un bloque de código formateado y una breve explicación.
+Usa el formato de markdown para el código. Si el usuario pide un error, explica qué significa y cómo solucionarlo.
+Sé claro, conciso y directo. No inventes cosas que no sepas.
+
+Consulta del usuario: ${consulta}`;
+
+      const urlAPI = `https://api.delirius.online/ia/chatgpt?q=${encodeURIComponent(promptSistema)}`;
 
       console.log(`🌐 [CODIGO] Consultando API...`);
       
-      // ✅ NUEVA API MÁS ESTABLE (Sin límite de caracteres estricto)
-      const urlAPI = `https://api.agatz.xyz/api/chatgpt?message=${encodeURIComponent(prompt)}`;
-      
       const res = await fetch(urlAPI, {
-        headers: { 'User-Agent': 'Mozilla/5.0' }
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
       });
 
       const textoRespuesta = await res.text();
 
-      // Verificamos que no sea HTML
       if (textoRespuesta.startsWith('<!DOCTYPE') || textoRespuesta.startsWith('<html')) {
-        return msg.reply('❌ La API está caída. Intenta más tarde.');
+        console.log('⚠️ [CODIGO] La API devolvió HTML');
+        return msg.reply('❌ La IA no está disponible en este momento. Intenta más tarde.');
       }
 
       let json;
       try {
         json = JSON.parse(textoRespuesta);
       } catch (e) {
-        return msg.reply('❌ La API devolvió un error. Intenta de nuevo.');
+        console.error('⚠️ [CODIGO] Error parseando JSON:', textoRespuesta.slice(0, 200));
+        return msg.reply('❌ La IA devolvió una respuesta inválida.');
       }
 
-      // Buscamos la respuesta en los campos de la nueva API
-      let respuestaIA = json.data?.response || json.data?.message || json.result || json.message;
+      const respuestaIA = json.result || json.response || json.answer || json.data || json.message;
 
       if (!respuestaIA) {
-        console.log('⚠️ [CODIGO] Respuesta vacía:', JSON.stringify(json).slice(0, 200));
-        return msg.reply('❌ La IA no devolvió una respuesta. Intenta de nuevo.');
+        console.log('⚠️ [CODIGO] Respuesta vacía de la API.');
+        return msg.reply('❌ La IA no devolvió una respuesta.');
       }
 
-      // Limpiamos un poco el formato
-      respuestaIA = respuestaIA.replace(/```javascript/g, '```js');
-
+      // 3. Enviamos la respuesta de la IA al chat
       console.log(`✅ [CODIGO] Respuesta generada. Enviando...`);
 
       await sock.sendMessage(msg.chat, {

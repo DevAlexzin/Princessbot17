@@ -1,6 +1,7 @@
 import db from "#db"
 import sharp from 'sharp'
-import fetch from 'node-fetch'
+import fs from 'fs'
+import path from 'path'
 
 const frases = [
   { min: 0, max: 15, texto: 'Cupido vio esto y pidió vacaciones. 😂💔' },
@@ -11,8 +12,8 @@ const frases = [
   { min: 91, max: 100, texto: '¡BODA, BODA! Ya elegimos los padrinos. 💍😂' }
 ];
 
-// URL de la imagen de fondo (niños abrazados)
-const IMAGEN_FONDO = 'https://i.imgur.com/8Y4w5kL.png'; 
+// ✅ Aquí cambiamos el nombre al de tu archivo
+const RUTA_FONDO = path.join(process.cwd(), 'fotoship.jpg');
 
 function escaparXML(texto = '') {
   return String(texto)
@@ -64,33 +65,38 @@ export default {
         });
       } catch (e) {}
 
-      console.log(`💘 [SHIP] Generando tarjeta con imagen de fondo...`);
+      // ✅ Verificamos que la imagen exista
+      if (!fs.existsSync(RUTA_FONDO)) {
+        return msg.reply('❌ La imagen de fondo no se encontró. Asegúrate de subir "fotoship.jpg" a la carpeta principal del bot.');
+      }
 
-      // ✅ 1. Descargamos la imagen de fondo
-      const resImagen = await fetch(IMAGEN_FONDO);
-      const bufferFondo = Buffer.from(await resImagen.arrayBuffer());
+      console.log(`💘 [SHIP] Generando tarjeta con imagen de fondo local...`);
 
-      // ✅ 2. Creamos el SVG con los textos (transparente para que se vea el fondo)
+      // ✅ 1. Leemos la imagen local
+      const bufferFondo = fs.readFileSync(RUTA_FONDO);
+
+      // ✅ 2. Creamos el SVG con los textos (transparente)
       const svgTextos = `
       <svg xmlns="http://www.w3.org/2000/svg" width="900" height="600" viewBox="0 0 900 600">
         <!-- Fondo semitransparente para que el texto se lea -->
-        <rect width="900" height="600" fill="rgba(0,0,0,0.5)" />
+        <rect width="900" height="600" fill="rgba(0,0,0,0.4)" />
         
-        <text x="450" y="100" text-anchor="middle" font-family="Arial" font-size="40" font-weight="bold" fill="#ff477e">LOVE MATCH</text>
+        <text x="450" y="100" text-anchor="middle" font-family="Arial" font-size="45" font-weight="bold" fill="#ff477e">LOVE MATCH</text>
         
-        <text x="450" y="200" text-anchor="middle" font-family="Arial" font-size="40" font-weight="bold" fill="#ffffff">${escaparXML(nombreBonito(nombres[0]))}</text>
+        <text x="450" y="220" text-anchor="middle" font-family="Arial" font-size="40" font-weight="bold" fill="#ffffff">${escaparXML(nombreBonito(nombres[0]))}</text>
         
-        <text x="450" y="270" text-anchor="middle" font-family="Arial" font-size="50" fill="#ff1744">❤️</text>
+        <text x="450" y="290" text-anchor="middle" font-family="Arial" font-size="50" fill="#ff1744">❤️</text>
         
-        <text x="450" y="340" text-anchor="middle" font-family="Arial" font-size="40" font-weight="bold" fill="#ffffff">${escaparXML(nombreBonito(nombres[1]))}</text>
+        <text x="450" y="360" text-anchor="middle" font-family="Arial" font-size="40" font-weight="bold" fill="#ffffff">${escaparXML(nombreBonito(nombres[1]))}</text>
         
-        <text x="450" y="420" text-anchor="middle" font-family="Arial" font-size="60" font-weight="bold" fill="#ffb3c6">${porcentaje}%</text>
+        <text x="450" y="450" text-anchor="middle" font-family="Arial" font-size="70" font-weight="bold" fill="#ffb3c6">${porcentaje}%</text>
         
-        <text x="450" y="520" text-anchor="middle" font-family="Arial" font-size="22" fill="#ffffff">${escaparXML(frase)}</text>
+        <text x="450" y="540" text-anchor="middle" font-family="Arial" font-size="24" fill="#ffffff">${escaparXML(frase)}</text>
       </svg>`;
 
-      // ✅ 3. Combinamos la imagen de fondo con los textos
+      // ✅ 3. Combinamos la imagen local con los textos
       const imagenFinal = await sharp(bufferFondo)
+        .resize(900, 600) // Redimensionamos para que encaje bien
         .composite([{ input: Buffer.from(svgTextos), top: 0, left: 0 }])
         .png()
         .toBuffer();

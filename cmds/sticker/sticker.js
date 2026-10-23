@@ -1,7 +1,7 @@
 import db from "#db"
 import fs from 'fs'
 import fetch from 'node-fetch'
-import exif from '../lib/exif.js' // ✅ Asegúrate de que esta ruta sea correcta
+import exif from '../../../lib/exif.js' // ✅ TRES niveles atrás para llegar a la raíz
 const { writeExif } = exif
 
 export default {
@@ -11,7 +11,6 @@ export default {
     try {
       console.log("========================================");
       console.log("🔍 [DEBUG] Comando 'sticker' ejecutado.");
-      console.log("📩 [DEBUG] args:", args);
       
       const quoted = msg.quoted ? msg.quoted : msg
       const mime = (quoted.msg || quoted).mimetype || ''

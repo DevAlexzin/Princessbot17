@@ -24,15 +24,17 @@ export default {
 
       console.log(`💻 [CODIGO] Consulta: ${consulta}`);
 
-      // ✅ TRUCO: Prompt super corto. La IA ya sabe programar, solo le damos las reglas de tu bot.
-      const prompt = `Actúa como programador de Baileys. Escribe un comando para WhatsApp usando esta estructura exacta:
+      // ✅ PROMPT CORTO Y DIRECTO
+      const prompt = `Actúa como programador de Baileys. Escribe un comando para WhatsApp usando esta estructura:
 import db from "#db"
 export default { command: ['nombre'], run: async ({ msg, sock }) => { /* código aquí */ } }
-Usa msg.reply() y sock.sendMessage(). No uses 'conn' ni 'm'. Responde solo con el código.
+Usa msg.reply() y sock.sendMessage(). No uses 'conn' ni 'm'.
 Tarea: ${consulta}`;
 
       console.log(`🌐 [CODIGO] Consultando API...`);
-      const urlAPI = `https://api.delirius.online/ia/chatgpt?q=${encodeURIComponent(prompt)}`;
+      
+      // ✅ NUEVA API MÁS ESTABLE (Sin límite de caracteres estricto)
+      const urlAPI = `https://api.agatz.xyz/api/chatgpt?message=${encodeURIComponent(prompt)}`;
       
       const res = await fetch(urlAPI, {
         headers: { 'User-Agent': 'Mozilla/5.0' }
@@ -52,11 +54,12 @@ Tarea: ${consulta}`;
         return msg.reply('❌ La API devolvió un error. Intenta de nuevo.');
       }
 
-      // Buscamos la respuesta en el campo correcto
-      let respuestaIA = json.result || json.response || json.message;
+      // Buscamos la respuesta en los campos de la nueva API
+      let respuestaIA = json.data?.response || json.data?.message || json.result || json.message;
 
-      if (!respuestaIA || respuestaIA.toLowerCase().includes('no response')) {
-        return msg.reply('❌ La IA se saturó. Intenta de nuevo en unos segundos.');
+      if (!respuestaIA) {
+        console.log('⚠️ [CODIGO] Respuesta vacía:', JSON.stringify(json).slice(0, 200));
+        return msg.reply('❌ La IA no devolvió una respuesta. Intenta de nuevo.');
       }
 
       // Limpiamos un poco el formato

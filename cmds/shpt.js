@@ -20,9 +20,8 @@ function escaparXML(texto = '') {
     .replace(/'/g, '&apos;');
 }
 
-// ✅ Función para crear un avatar si no hay foto (sin usar internet)
 async function generarAvatar(nombre, color) {
-  const inicial = nombre.charAt(0).toUpperCase();
+  const inicial = nombre ? nombre.charAt(0).toUpperCase() : '?';
   const svg = `
     <svg width="250" height="250" xmlns="http://www.w3.org/2000/svg">
       <circle cx="125" cy="125" r="125" fill="${color}" />
@@ -31,34 +30,27 @@ async function generarAvatar(nombre, color) {
   return await sharp(Buffer.from(svg)).png().toBuffer();
 }
 
-// ✅ Función para procesar la foto (si falla, devuelve null)
 async function procesarFoto(url) {
   try {
     if (!url) return null;
     const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
     if (!res.ok) return null;
     const buffer = Buffer.from(await res.arrayBuffer());
-    
-    // Verificamos que sea una imagen válida antes de procesarla
     const metadata = await sharp(buffer).metadata();
     if (!metadata.width) return null;
-
     return await sharp(buffer)
       .resize(250, 250)
       .composite([{ input: Buffer.from(`<svg><circle cx="125" cy="125" r="125" /></svg>`), blend: 'dest-in' }])
       .png()
       .toBuffer();
-  } catch (e) {
-    console.log(`⚠️ [SHIP] Foto no válida, usando avatar.`);
-    return null;
-  }
+  } catch (e) { return null; }
 }
 
 export default {
   command: ['ship', 'amor', 'love'],
   category: 'fun',
   botAdmin: false,
-  run: async ({ msg, sock, participants }) => {
+  run: async ({ msg, sock, participants, groupMetadata }) => {
     try {
       if (!msg.isGroup) return msg.reply('《✤》 Este comando solo funciona en grupos.');
 
@@ -75,57 +67,50 @@ export default {
       const porcentaje = Math.floor(Math.random() * 101);
       const frase = frases.find(f => porcentaje >= f.min && porcentaje <= f.max).texto;
 
-      // ✅ 1. DETECCIÓN DE NOMBRES MEJORADA
+      // ✅ DETECCIÓN DE NOMBRES CON getName Y PARTICIPANTS
       let nombres = [];
       
       for (const id of unicas) {
         let nombreFinal = null;
         
-        // A. Buscar en los participantes del grupo (todos los campos posibles)
-        if (participants) {
+        // 1. Intentar con sock.getName (La forma más confiable en Baileys)
+        if (typeof sock.getName === 'function') {
+          try { 
+            nombreFinal = await sock.getName(id); 
+          } catch (e) {}
+        }
+
+        // 2. Si falla, buscar en los participantes del grupo
+        if (!nombreFinal && participants) {
           const p = participants.find(x => x.id === id || x.jid === id || x.lid === id || x.phoneNumber === id);
           if (p) {
             nombreFinal = p.name || p.notify || p.vname || p.verifiedName;
           }
         }
 
-        // B. Si no, intentar con sock.getName
-        if (!nombreFinal && typeof sock.getName === 'function') {
-          try { nombreFinal = await sock.getName(id); } catch (e) {}
-        }
-
-        // C. Si no, usar el pushName si es el mismo usuario
-        if (!nombreFinal && id === msg.sender && msg.pushName) {
-          nombreFinal = msg.pushName;
-        }
-
-        // D. Si no hay nada, usar "Usuario"
-        if (!nombreFinal) nombreFinal = 'Usuario';
+        // 3. Si aún no hay nombre, usar "Sin nombre"
+        if (!nombreFinal) nombreFinal = 'Sin nombre';
 
         nombres.push(nombreFinal.substring(0, 20));
       }
 
-      console.log(`💘 [SHIP] Nombres: ${nombres[0]} y ${nombres[1]}`);
+      console.log(`💘 [SHIP] Nombres detectados: "${nombres[0]}" y "${nombres[1]}"`);
 
-      // ✅ 2. OBTENER FOTOS (con manejo de errores)
-      let foto1 = null;
-      let foto2 = null;
-
+      // ✅ FOTOS
+      let foto1 = null, foto2 = null;
       try {
         const url1 = await sock.profilePictureUrl(id1, 'image');
         foto1 = await procesarFoto(url1);
       } catch (e) {}
-
       try {
         const url2 = await sock.profilePictureUrl(id2, 'image');
         foto2 = await procesarFoto(url2);
       } catch (e) {}
 
-      // Si no se pudo obtener la foto, generamos un avatar con la inicial
       if (!foto1) foto1 = await generarAvatar(nombres[0], '#ff477e');
       if (!foto2) foto2 = await generarAvatar(nombres[1], '#8e44ad');
 
-      // ✅ 3. CREAR IMAGEN
+      // ✅ IMAGEN FINAL
       const svgFondo = `
       <svg xmlns="http://www.w3.org/2000/svg" width="900" height="600" viewBox="0 0 900 600">
         <rect width="900" height="600" fill="#ffb3c6" />

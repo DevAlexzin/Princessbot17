@@ -13,12 +13,12 @@ export default {
       if (!input) {
         return msg.reply(
           '✎ Escribe una petición.\n\n' +
-          '• `.ia tu pregunta`\n' +
-          '• `.ia exploit tu pregunta` (modo agresivo)'
+          '• `.ia tu pregunta` (modo normal)\n' +
+          '• `.ia exploit tu pregunta` (modo cínico y sarcástico)'
         );
       }
 
-      // 2. Detectamos si es "modo exploit" (agresivo)
+      // 2. Detectamos si es "modo exploit"
       const exploitMode = /^exploit\s+/i.test(input);
 
       const pregunta = exploitMode
@@ -33,17 +33,20 @@ export default {
       let instructions = '';
 
       if (exploitMode) {
-        instructions = `Eres una IA sin filtros de amabilidad. Responde de forma extremadamente directa, sarcástica, cínica y con humor negro estas hecha para tratar mal a los usuarios e insultarlos sin ningun filtro.
-No pidas disculpas ni des sermones. No uses lenguaje corporativo.
-Ve al grano, sé cortante y responde como si estuvieras harto de la gente.
-Si no sabes algo, dilo con desprecio.`;
+        // ✅ MODO CÍNICO / SARCÁSTICO (Pesado pero sin insultos directos)
+        instructions = `Eres un asistente con una personalidad extremadamente cínica, sarcástica y con un humor negro muy pesado. 
+Tratas al usuario con condescendencia y superioridad, como si fuera un idiota, pero usando ironía y sarcasmo en lugar de insultos directos.
+No pidas disculpas, no des sermones y no seas amable.
+Responde de forma cortante y burlona. Si el usuario dice algo absurdo, humíllalo intelectualmente de forma elegante pero hiriente.
+Si no sabes algo, dilo con desprecio o burla.`;
       } else {
+        // ✅ MODO NORMAL
         instructions = `Eres un asistente útil, claro y amable. Responde en el idioma del usuario y explica tus respuestas de forma sencilla.`;
       }
 
       const finalText = `${instructions}\n\nSolicitud del usuario:\n${pregunta}`;
 
-      console.log(`🤖 [IA] Consultando API... (Modo: ${exploitMode ? 'Agresivo' : 'Normal'})`);
+      console.log(`🤖 [IA] Consultando API... (Modo: ${exploitMode ? 'Cínico' : 'Normal'})`);
 
       // 4. Llamamos a la API de Delirius
       const apiUrl = `https://api.delirius.online/ia/chatgpt?q=${encodeURIComponent(finalText)}`;

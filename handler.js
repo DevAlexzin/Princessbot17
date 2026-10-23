@@ -221,43 +221,88 @@ INSTRUCCIONES ESTRICTAS:
   // ============================================================
   // 🃏 MANEJADOR DE LISTA DE POKECARD
   // ============================================================
-  if (msg.message?.listResponseMessage || msg.message?.listMessage) {
-    const rowId = msg.message.listResponseMessage?.singleSelectReply?.selectedRowId;
+  if (msg.message?.listResponseMessage) {
+    const rowId = msg.message.listResponseMessage.singleSelectReply?.selectedRowId;
     const chatId = msg.key.remoteJid;
 
-    console.log(`🔍 [POKECARD] Evento de lista detectado. RowID: ${rowId}`);
-
-    if (rowId === 'poke_0') {
-      console.log(`✅ [POKECARD] Opción 'poke_0' seleccionada.`);
+    if (rowId && rowId.startsWith('poke_')) {
+      console.log(`🔍 [POKECARD] Carta seleccionada: ${rowId}`);
       
-      const cache = global.pokecardCache?.[chatId];
+      const index = parseInt(rowId.replace('poke_', ''));
+      const cartas = global.pokecardCache?.[chatId];
 
-      if (cache) {
-        console.log(`📤 [POKECARD] Enviando imagen desde caché...`);
-        if (cache.buffer) {
+      if (cartas && cartas[index]) {
+        const carta = cartas[index];
+        const imagenUrl = carta.images?.large || carta.images?.small;
+        
+        if (imagenUrl) {
           await sock.sendMessage(chatId, {
-            image: cache.buffer,
-            caption: `🃏 *Carta Pokémon: ${cache.busqueda}*\n\n> 🔎 Búsqueda realizada con éxito.`
+            image: { url: imagenUrl },
+            caption: `🃏 *${carta.name}*\n\n> 🧬 *Tipo:* ${carta.types?.join(' / ') || 'Desconocido'}\n> ❤️ *HP:* ${carta.hp || '?'}\n> ⭐ *Rareza:* ${carta.rarity || 'Común'}\n> 📦 *Set:* ${carta.set?.name || '?'}`
           }, { quoted: msg });
-        } else if (cache.url) {
-          await sock.sendMessage(chatId, {
-            image: { url: cache.url },
-            caption: `🃏 *Carta Pokémon: ${cache.busqueda}*\n\n> 🔎 Búsqueda realizada con éxito.`
-          }, { quoted: msg });
+        } else {
+          await sock.sendMessage(chatId, { text: '❌ No se encontró la imagen de la carta.' }, { quoted: msg });
         }
-        console.log(`✅ [POKECARD] Imagen enviada. Limpiando caché.`);
-        delete global.pokecardCache[chatId];
       } else {
-        console.log(`⚠️ [POKECARD] Caché no encontrada para ${chatId}`);
         await sock.sendMessage(chatId, { text: '❌ La sesión de búsqueda expiró. Vuelve a usar `.pokecard`. ' }, { quoted: msg });
       }
       return;
-    } else {
-      console.log(`⚠️ [POKECARD] RowID no reconocido o vacío.`);
     }
   }
   // ============================================================
   // FIN MANEJADOR DE LISTA DE POKECARD
+  // ============================================================
+
+  // ============================================================
+  // 🏹 MANEJADOR DE BOTÓN DE PATROCINIO
+  // ============================================================
+  if (msg.message?.buttonsResponseMessage) {
+    const buttonId = msg.message.buttonsResponseMessage.selectedButtonId;
+    const chatId = msg.key.remoteJid;
+
+    if (buttonId && buttonId.startsWith('patro_entre_')) {
+      console.log(`✅ [PATRO] Botón de entrega presionado: ${buttonId}`);
+      
+      const idPatro = buttonId.replace('patro_entre_', '');
+      const chatData = await db.getChat(chatId);
+      const dbKey = `patrocinios_${chatId}`;
+      let patrocinios = chatData[dbKey] || [];
+      
+      const index = patrocinios.findIndex(p => p.id === idPatro);
+      
+      if (index === -1) {
+        await sock.sendMessage(chatId, { text: '❌ No se encontró el patrocinio.' }, { quoted: msg });
+        return;
+      }
+
+      if (patrocinios[index].estado === 'entregado') {
+        await sock.sendMessage(chatId, { text: '⚠️ Este patrocinio ya fue marcado como entregado.' }, { quoted: msg });
+        return;
+      }
+
+      // Actualizamos el estado a 'entregado'
+      patrocinios[index].estado = 'entregado';
+      await db.updateChat(chatId, dbKey, patrocinios);
+
+      // Enviamos el mensaje de confirmación
+      const mensajeConfirmacion = `✅ *¡Patrocinio Entregado!*
+
+> 👤 *Patrocinador:* ${patrocinios[index].nombre}
+> 💰 *Valor:* ${patrocinios[index].valor}
+> 📱 *Número:* ${patrocinios[index].numero}
+> 🎁 *Banners:* ${patrocinios[index].banners}
+
+> 📅 *Fecha de entrega:* ${new Date().toLocaleString('es-ES')}
+
+> ⚠️ El estado ha sido actualizado a *Entregado*.`;
+
+      await sock.sendMessage(chatId, { text: mensajeConfirmacion }, { quoted: msg });
+      console.log(`✅ [PATRO] Patrocinio ${idPatro} marcado como entregado.`);
+      return;
+    }
+  }
+  // ============================================================
+  // FIN MANEJADOR DE BOTÓN DE PATROCINIO
   // ============================================================
 
   // ============================================================

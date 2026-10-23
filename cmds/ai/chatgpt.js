@@ -159,7 +159,7 @@ de forma sencilla y natural.
         msg.chat,
         {
           text: exploitMode
-            ? `😈🔥 *MODO ROAST ACTIVADO* 🔥😈\n\n${respuesta}`
+            ? `*MODO ROAST ACTIVADO*\n\n${respuesta}`
             : `🤖 *RESPUESTA DE IA*\n\n${respuesta}`
         },
         { quoted: msg }

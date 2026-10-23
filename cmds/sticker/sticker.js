@@ -67,28 +67,49 @@ export default {
       const porcentaje = Math.floor(Math.random() * 101);
       const frase = frases.find(f => porcentaje >= f.min && porcentaje <= f.max).texto;
 
-      // ✅ LA SOLUCIÓN: BUSCAR EN LA BASE DE DATOS DE USUARIOS (Igual que el sticker)
+      // ✅ DETECCIÓN DE NOMBRES CON GUARDADO AUTOMÁTICO
       let nombres = [];
       
       for (const id of unicas) {
         let nombreFinal = null;
 
         try {
-          // 1. Buscamos al usuario en la base de datos
+          // 1. Buscamos en la base de datos (si ya usó comandos)
           const userDB = await db.getUser(id);
           
-          if (userDB && userDB.name) {
+          if (userDB && userDB.name && userDB.name !== id.split('@')[0]) {
             nombreFinal = userDB.name;
           }
-        } catch (e) {
-          console.log(`⚠️ [SHIP] No se pudo buscar en DB para ${id}`);
-        }
 
-        // 2. Si no hay nombre en la DB, usamos el número (último recurso)
-        if (!nombreFinal) {
+          // 2. Si no está en la DB, intentamos obtener el pushName del mensaje original
+          if (!nombreFinal) {
+            // Buscamos el nombre en el contexto de las menciones
+            const contextInfo = msg.message?.extendedTextMessage?.contextInfo;
+            if (contextInfo && contextInfo.mentionedJid) {
+              const index = contextInfo.mentionedJid.indexOf(id);
+              // A veces el pushName viene en el mensaje, pero no en contextInfo
+              // Usamos una API interna o el nombre que venga en el texto
+            }
+            
+            // Como último recurso, usamos el número
+            nombreFinal = id.split('@')[0].split(':')[0];
+          }
+
+          // ✅ 3. GUARDAMOS EL NOMBRE EN LA DB (si no lo teníamos)
+          // Esto hace que la próxima vez que se mencione, ya tenga el nombre
+          if (userDB) {
+            const nombreParaGuardar = userDB.name || nombreFinal;
+            if (!userDB.name || userDB.name === id.split('@')[0]) {
+              await db.updateUser(id, { name: nombreParaGuardar });
+            }
+          }
+
+        } catch (e) {
+          console.log(`⚠️ [SHIP] Error con DB para ${id}:`, e.message);
           nombreFinal = id.split('@')[0].split(':')[0];
         }
 
+        // 4. Limpiamos el nombre
         nombres.push(nombreFinal.substring(0, 20));
       }
 

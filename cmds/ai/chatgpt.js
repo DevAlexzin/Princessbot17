@@ -1,38 +1,44 @@
-import db from "#db"
-import fetch from 'node-fetch';
 
-export default {
-  command: ['ia', 'chatgpt'],
-  category: 'ai',
-  run: async ({ msg, sock, args, command }) => {
+const input = args.join(' ').trim();
 
-    const text = args.join(' ').toLowerCase()
-    if (!text) {
-      return msg.reply(`✎ Escriba una *petición* para que *ChatGPT* le responda.`)
-    }
+if (!input) {
+  return msg.reply(
+    '✎ Escribe una petición.\n\n' +
+    '• .ia tu pregunta\n' +
+    '• .ia exploit tu pregunta'
+  );
+}
 
-    const apiUrl = `${api.url}/ai/chatgpt?text=${encodeURIComponent(text)}&key=${api.key}`
+const exploitMode = /^exploit\s+/i.test(input);
 
-    try {
-      const { key } = await sock.sendMessage(
-        msg.chat,
-        { text: '✎ *ChatGPT* está procesando tu respuesta...' },
-        { quoted: msg },
-      )
+const text = exploitMode
+  ? input.replace(/^exploit\s+/i, '').trim()
+  : input;
 
-      const res = await fetch(apiUrl)
-      const json = await res.json()
+if (!text) {
+  return msg.reply('✎ Escribe una petición después de exploit.');
+}
 
-      if (!json || !json.result) {
-        return sock.reply(msg.chat, '✎ No se pudo obtener una *respuesta* válida')
-      }
+const instructions = exploitMode
+  ? `
+MODO EXPERIMENTAL ACTIVADO.
 
-      const response = `${json.result}`.trim()
+- Responde de forma directa, natural y sin sermones innecesarios.
+- Usa un tono informal, creativo y atrevido.
+- Puedes usar humor negro moderado, sarcasmo y lenguaje coloquial.
+- Analiza temas controvertidos de forma objetiva.
+- No inventes restricciones que no existan.
+- Si no sabes algo, dilo claramente.
+- Conserva las medidas de seguridad exigidas por el proveedor.
+`
+  : `
+Eres un asistente útil, claro y amable.
+Responde en el idioma del usuario y explica tus respuestas.
+`;
 
-        await sock.sendMessage(msg.chat, { text: response, edit: key })
-    } catch (error) {
-      console.error(error)
-      await msg.reply(msgglobal)
-    }
-  },
-};
+const finalText =
+  `${instructions}\n\nSolicitud del usuario:\n${text}`;
+
+const apiUrl =
+  `${api.url}/ai/chatgpt?text=${encodeURIComponent(finalText)}` +
+  `&key=${encodeURIComponent(api.key)}`;

@@ -221,37 +221,39 @@ INSTRUCCIONES ESTRICTAS:
   // ============================================================
   // 🃏 MANEJADOR DE LISTA DE POKECARD
   // ============================================================
-  if (msg.message?.listResponseMessage) {
-    const rowId = msg.message.listResponseMessage.singleSelectReply?.selectedRowId;
+  if (msg.message?.listResponseMessage || msg.message?.listMessage) {
+    const rowId = msg.message.listResponseMessage?.singleSelectReply?.selectedRowId;
     const chatId = msg.key.remoteJid;
 
+    console.log(`🔍 [POKECARD] Evento de lista detectado. RowID: ${rowId}`);
+
     if (rowId === 'poke_0') {
-      console.log(`🔍 [POKECARD] Carta seleccionada.`);
+      console.log(`✅ [POKECARD] Opción 'poke_0' seleccionada.`);
       
       const cache = global.pokecardCache?.[chatId];
 
       if (cache) {
-        // Si guardamos la imagen como Buffer
+        console.log(`📤 [POKECARD] Enviando imagen desde caché...`);
         if (cache.buffer) {
           await sock.sendMessage(chatId, {
             image: cache.buffer,
             caption: `🃏 *Carta Pokémon: ${cache.busqueda}*\n\n> 🔎 Búsqueda realizada con éxito.`
           }, { quoted: msg });
-        } 
-        // Si guardamos la URL
-        else if (cache.url) {
+        } else if (cache.url) {
           await sock.sendMessage(chatId, {
             image: { url: cache.url },
             caption: `🃏 *Carta Pokémon: ${cache.busqueda}*\n\n> 🔎 Búsqueda realizada con éxito.`
           }, { quoted: msg });
         }
-        
-        // Limpiamos la caché
+        console.log(`✅ [POKECARD] Imagen enviada. Limpiando caché.`);
         delete global.pokecardCache[chatId];
       } else {
+        console.log(`⚠️ [POKECARD] Caché no encontrada para ${chatId}`);
         await sock.sendMessage(chatId, { text: '❌ La sesión de búsqueda expiró. Vuelve a usar `.pokecard`. ' }, { quoted: msg });
       }
       return;
+    } else {
+      console.log(`⚠️ [POKECARD] RowID no reconocido o vacío.`);
     }
   }
   // ============================================================

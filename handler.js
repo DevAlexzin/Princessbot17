@@ -225,24 +225,29 @@ INSTRUCCIONES ESTRICTAS:
     const rowId = msg.message.listResponseMessage.singleSelectReply?.selectedRowId;
     const chatId = msg.key.remoteJid;
 
-    if (rowId && rowId.startsWith('poke_')) {
-      console.log(`🔍 [POKECARD] Carta seleccionada: ${rowId}`);
+    if (rowId === 'poke_0') {
+      console.log(`🔍 [POKECARD] Carta seleccionada.`);
       
-      const index = parseInt(rowId.replace('poke_', ''));
-      const cartas = global.pokecardCache?.[chatId];
+      const cache = global.pokecardCache?.[chatId];
 
-      if (cartas && cartas[index]) {
-        const carta = cartas[index];
-        const imagenUrl = carta.images?.large || carta.images?.small;
-        
-        if (imagenUrl) {
+      if (cache) {
+        // Si guardamos la imagen como Buffer
+        if (cache.buffer) {
           await sock.sendMessage(chatId, {
-            image: { url: imagenUrl },
-            caption: `🃏 *${carta.name}*\n\n> 🧬 *Tipo:* ${carta.types?.join(' / ') || 'Desconocido'}\n> ❤️ *HP:* ${carta.hp || '?'}\n> ⭐ *Rareza:* ${carta.rarity || 'Común'}\n> 📦 *Set:* ${carta.set?.name || '?'}`
+            image: cache.buffer,
+            caption: `🃏 *Carta Pokémon: ${cache.busqueda}*\n\n> 🔎 Búsqueda realizada con éxito.`
           }, { quoted: msg });
-        } else {
-          await sock.sendMessage(chatId, { text: '❌ No se encontró la imagen de la carta.' }, { quoted: msg });
+        } 
+        // Si guardamos la URL
+        else if (cache.url) {
+          await sock.sendMessage(chatId, {
+            image: { url: cache.url },
+            caption: `🃏 *Carta Pokémon: ${cache.busqueda}*\n\n> 🔎 Búsqueda realizada con éxito.`
+          }, { quoted: msg });
         }
+        
+        // Limpiamos la caché
+        delete global.pokecardCache[chatId];
       } else {
         await sock.sendMessage(chatId, { text: '❌ La sesión de búsqueda expiró. Vuelve a usar `.pokecard`. ' }, { quoted: msg });
       }

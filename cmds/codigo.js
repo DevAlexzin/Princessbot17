@@ -11,7 +11,6 @@ export default {
       console.log("💻 [DEBUG] Comando 'codigo' ejecutado.");
       console.log("========================================");
 
-      // 1. Extraemos el texto del mensaje
       let textoCompleto = msg.text || msg.body || '';
       const consulta = textoCompleto
         .replace(/^[.\/!#]?(codigo|code|programar)\s*/i, '')
@@ -20,25 +19,49 @@ export default {
       if (!consulta) {
         return msg.reply(`💻 *Ayuda de Programación*
 
-*📋 Uso:* \`.codigo lenguaje tarea\`
+*📋 Uso:* \`.codigo tarea\`
 
 *📌 Ejemplos:*
-> \`.codigo js hola mundo\`
-> \`.codigo python calculadora\`
-> \`.codigo html pagina web\`
-> \`.codigo error TypeError\`
-> \`.codigo regex correo\`
+> \`.codigo comando de kick\`
+> \`.codigo comando para stickers\`
+> \`.codigo comando de ruleta\`
 
-> 💡 *Nota:* El bot usará IA para generar el código.`);
+> 💡 *Nota:* La IA generará el código con la estructura exacta de Princess Bot.`);
       }
 
       console.log(`💻 [CODIGO] Consulta: ${consulta}`);
 
-      // 2. Preparamos el Prompt para la IA
-      const promptSistema = `Eres un asistente experto en programación.
-El usuario te pedirá ayuda con código. Debes responder SIEMPRE con un bloque de código formateado y una breve explicación.
-Usa el formato de markdown para el código. Si el usuario pide un error, explica qué significa y cómo solucionarlo.
-Sé claro, conciso y directo. No inventes cosas que no sepas.
+      // ✅ SYSTEM PROMPT CON LA ESTRUCTURA EXACTA DEL BOT
+      const promptSistema = `Eres un programador experto en crear comandos para un bot de WhatsApp hecho con Node.js y Baileys.
+El usuario te pedirá que crees un comando. DEBES responder SIEMPRE con la estructura exacta que usa este bot, que es la siguiente:
+
+import db from "#db"
+
+export default {
+  command: ['nombrecomando', 'alias'],
+  category: 'grupo',
+  isAdmin: false,
+  botAdmin: false,
+  run: async ({ msg, sock }) => {
+    try {
+      // Lógica del comando
+      // Para responder: msg.reply("texto")
+      // Para enviar mensajes: sock.sendMessage(msg.chat, { text: "texto" }, { quoted: msg })
+      // Para obtener el texto: msg.text o msg.body
+      // Para mencionar: msg.mentionedJid
+    } catch (e) {
+      console.error("❌ [ERROR]:", e.message);
+      msg.reply('❌ Ocurrió un error.');
+    }
+  }
+};
+
+REGLAS ESTRICTAS:
+1. Usa SIEMPRE la estructura de arriba. No uses "module.exports", no uses "conn", no uses "m", usa "msg" y "sock".
+2. La categoría por defecto es 'grupo' (o 'info', 'fun', 'search', 'download', 'ia', 'sticker' según corresponda).
+3. Si es un comando de admin, pon isAdmin: true. Si el bot debe ser admin, pon botAdmin: true.
+4. No inventes variables que no existan. Usa db.getChat(msg.chat) para obtener la base de datos y db.updateChat(msg.chat, 'clave', valor) para guardar.
+5. El código debe ir dentro de un bloque de markdown \`\`\`javascript ... \`\`\` y luego una breve explicación.
 
 Consulta del usuario: ${consulta}`;
 
@@ -56,7 +79,7 @@ Consulta del usuario: ${consulta}`;
 
       if (textoRespuesta.startsWith('<!DOCTYPE') || textoRespuesta.startsWith('<html')) {
         console.log('⚠️ [CODIGO] La API devolvió HTML');
-        return msg.reply('❌ La IA no está disponible en este momento. Intenta más tarde.');
+        return msg.reply('❌ La IA no está disponible en este momento.');
       }
 
       let json;
@@ -70,11 +93,9 @@ Consulta del usuario: ${consulta}`;
       const respuestaIA = json.result || json.response || json.answer || json.data || json.message;
 
       if (!respuestaIA) {
-        console.log('⚠️ [CODIGO] Respuesta vacía de la API.');
         return msg.reply('❌ La IA no devolvió una respuesta.');
       }
 
-      // 3. Enviamos la respuesta de la IA al chat
       console.log(`✅ [CODIGO] Respuesta generada. Enviando...`);
 
       await sock.sendMessage(msg.chat, {

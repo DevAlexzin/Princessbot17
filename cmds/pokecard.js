@@ -22,7 +22,7 @@ export default {
 
 *📋 Uso:* \`.pokecard nombre\`
 
-*📌 Ejemplo:* \`.pokecard charizard\``);
+*📌 Ejemplo:* \`.pokecard pikachu\``);
       }
 
       console.log(`🔍 [POKECARD] Buscando: ${busqueda}`);
@@ -36,68 +36,67 @@ export default {
         }
       });
 
-      const textoRespuesta = await res.text();
+      // ✅ 3. Verificamos el tipo de contenido que devuelve la API
+      const contentType = res.headers.get('content-type') || '';
+      console.log(`📄 [POKECARD] Content-Type: ${contentType}`);
 
-      // 3. Verificamos que la API no devuelva HTML (caída o error)
-      if (textoRespuesta.startsWith('<!DOCTYPE') || textoRespuesta.startsWith('<html')) {
-        console.log('⚠️ [POKECARD] La API devolvió HTML');
-        return msg.reply('❌ La API no está disponible en este momento. Intenta más tarde.');
+      // ✅ CASO 1: La API devuelve una imagen directamente (como en tu error)
+      if (contentType.includes('image')) {
+        console.log('🖼️ [POKECARD] La API devolvió una imagen. Enviándola...');
+        
+        // Convertimos la respuesta a un Buffer
+        const arrayBuffer = await res.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+
+        if (buffer.length === 0) {
+          return msg.reply('❌ La imagen de la carta está vacía.');
+        }
+
+        // Enviamos la imagen
+        await sock.sendMessage(msg.chat, {
+          image: buffer,
+          caption: `🃏 *Carta Pokémon: ${busqueda}*\n\n> 🔎 Búsqueda realizada con éxito.`
+        }, { quoted: msg });
+
+        console.log('✅ [POKECARD] Imagen enviada correctamente.');
+        return;
       }
 
-      // 4. Parseamos el JSON
+      // ✅ CASO 2: La API devuelve un JSON (por si cambia en el futuro)
+      const textoRespuesta = await res.text();
+      
+      if (textoRespuesta.startsWith('<!DOCTYPE') || textoRespuesta.startsWith('<html')) {
+        console.log('⚠️ [POKECARD] La API devolvió HTML');
+        return msg.reply('❌ La API no está disponible en este momento.');
+      }
+
       let json;
       try {
         json = JSON.parse(textoRespuesta);
       } catch (e) {
         console.error('⚠️ [POKECARD] Error parseando JSON:', textoRespuesta.slice(0, 200));
-        return msg.reply('❌ La API devolvió una respuesta inválida.');
+        return msg.reply('❌ La API devolvió un formato desconocido.');
       }
 
-      // 5. Verificamos que la respuesta sea exitosa y tenga resultados
-      if (!json.status || !json.data || json.data.length === 0) {
-        return msg.reply(`❌ No se encontraron cartas para *${busqueda}*.`);
+      if (!json.status || !json.data) {
+        return msg.reply(`❌ No se encontró ninguna carta para *${busqueda}*.`);
       }
 
-      const cartas = json.data;
-      console.log(`✅ [POKECARD] Se encontraron ${cartas.length} cartas.`);
+      const data = json.data;
+      const imagenUrl = data.image || data.images?.large || data.card_images?.[0]?.image_url;
 
-      // 6. Armamos las filas para la lista desplegable
-      // (Máximo 10 filas para que no falle)
-      const filas = cartas.slice(0, 10).map((carta, index) => {
-        return {
-          title: `${carta.name || 'Carta'} - ${carta.rarity || 'Común'}`,
-          description: `Tipo: ${carta.type || '?'} | HP: ${carta.hp || '?'}`,
-          rowId: `poke_${index}` // Guardamos el índice para saber qué carta eligió
-        };
-      });
-
-      // 7. Enviamos el mensaje con la lista
-      console.log("📤 [POKECARD] Enviando lista desplegable...");
+      if (!imagenUrl) {
+        return msg.reply('❌ No se encontró la imagen de la carta.');
+      }
 
       await sock.sendMessage(msg.chat, {
-        text: `🃏 *Cartas encontradas para: ${busqueda}*\n\n> Toca el botón de abajo para ver las opciones disponibles.`,
-        footer: 'Princess Bot',
-        title: 'Selecciona una Carta',
-        buttonText: 'Ver Cartas',
-        sections: [
-          {
-            title: `Resultados (${cartas.length})`,
-            rows: filas
-          }
-        ]
+        image: { url: imagenUrl },
+        caption: `🃏 *Carta Pokémon: ${data.name || busqueda}*`
       }, { quoted: msg });
-
-      console.log("✅ [POKECARD] Lista enviada correctamente.");
-
-      // ✅ Guardamos temporalmente los resultados en memoria
-      // Para que cuando el usuario elija una carta en el handler, podamos enviarla
-      global.pokecardCache = global.pokecardCache || {};
-      global.pokecardCache[msg.chat] = cartas;
 
     } catch (e) {
       console.error("❌ [POKECARD ERROR]:", e.message);
-      console.error(e.stack);
       msg.reply(msgglobal || '❌ Ocurrió un error al buscar la carta.');
     }
-  },
+  }
 };

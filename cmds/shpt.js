@@ -50,7 +50,7 @@ export default {
   command: ['ship', 'amor', 'love'],
   category: 'fun',
   botAdmin: false,
-  run: async ({ msg, sock, text }) => {
+  run: async ({ msg, sock, participants }) => { // ✅ Agregamos participants
     try {
       if (!msg.isGroup) return msg.reply('《✤》 Este comando solo funciona en grupos.');
 
@@ -58,7 +58,7 @@ export default {
       const unicas = [...new Set(menciones)];
 
       if (unicas.length !== 2) {
-        return msg.reply(`💘 *¡SHIP!* 💘\n\n> Menciona a dos personas para crear su tarjeta.\n\n*📌 Ejemplo:* \`.ship @persona1 @persona2 Nombre1 Nombre2\``);
+        return msg.reply(`💘 *¡SHIP!* 💘\n\n> Menciona a dos personas para crear su tarjeta.\n\n*📌 Ejemplo:* \`.ship @persona1 @persona2\``);
       }
 
       const [id1, id2] = unicas;
@@ -67,30 +67,35 @@ export default {
       const porcentaje = Math.floor(Math.random() * 101);
       const frase = frases.find(f => porcentaje >= f.min && porcentaje <= f.max).texto;
 
-      // ✅ DETECCIÓN DE NOMBRES MANUALES
-      // Si el usuario escribe ".ship @Rocio @Emy Rocio Emy", los nombres están en el texto
-      let nombresManuales = [];
-      
-      // Limpiamos el texto de las menciones y comandos
-      let textoLimpio = (text || '').replace(/@\d{8,15}/g, '').trim();
-      // Si quedan palabras, las usamos como nombres
-      if (textoLimpio) {
-        nombresManuales = textoLimpio.split(' ').filter(p => p.length > 0);
-      }
-
+      // ✅ SOLUCIÓN: Buscar por LID y obtener el número de teléfono real para encontrar el nombre
       let nombres = [];
       
-      for (let i = 0; i < unicas.length; i++) {
+      for (const id of unicas) {
         let nombreFinal = null;
+        
+        if (participants) {
+          // 1. Buscamos al participante por su LID (el ID que nos da la mención)
+          const persona = participants.find(p => 
+            p.id === id || 
+            p.lid === id || 
+            p.jid === id || 
+            p.phoneNumber === id
+          );
 
-        // 1. Si el usuario escribió el nombre manualmente, lo usamos
-        if (nombresManuales[i]) {
-          nombreFinal = nombresManuales[i];
+          if (persona) {
+            // 2. Intentamos sacar el nombre de todos los campos posibles
+            nombreFinal = persona.name || persona.notify || persona.vname || persona.verifiedName;
+            
+            // 3. Si no hay nombre, usamos su número real (phoneNumber) en lugar del LID
+            if (!nombreFinal && persona.phoneNumber) {
+              nombreFinal = persona.phoneNumber.split('@')[0];
+            }
+          }
         }
 
-        // 2. Si no, usamos el número como último recurso
+        // 4. Si aún no hay nombre, usamos el LID como último recurso
         if (!nombreFinal) {
-          nombreFinal = unicas[i].split('@')[0].split(':')[0];
+          nombreFinal = id.split('@')[0].split(':')[0];
         }
 
         nombres.push(nombreFinal.substring(0, 20));

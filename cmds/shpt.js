@@ -12,7 +12,6 @@ const frases = [
   { min: 91, max: 100, texto: '¡BODA, BODA! Ya elegimos los padrinos. 💍😂' }
 ];
 
-// ✅ Aquí cambiamos el nombre al de tu archivo
 const RUTA_FONDO = path.join(process.cwd(), 'fotoship.jpg');
 
 function escaparXML(texto = '') {
@@ -33,7 +32,7 @@ export default {
   command: ['ship', 'amor', 'love'],
   category: 'fun',
   botAdmin: false,
-  run: async ({ msg, sock }) => {
+  run: async ({ msg, sock, groupMetadata, participants }) => {
     try {
       if (!msg.isGroup) return msg.reply('《✤》 Este comando solo funciona en grupos.');
 
@@ -54,31 +53,51 @@ export default {
       const porcentaje = Math.floor(Math.random() * 101);
       const frase = frases.find(f => porcentaje >= f.min && porcentaje <= f.max).texto;
 
-      let nombres = [id1, id2].map(id => id.split('@')[0]);
+      // ✅ OBTENER NOMBRES REALES (Forzando desde groupMetadata)
+      let nombres = [];
       
-      try {
-        const metadata = await sock.groupMetadata(msg.chat);
-        const participantes = metadata.participants ?? [];
-        nombres = [id1, id2].map((id, i) => {
-          const persona = participantes.find(p => p.id === id || p.lid === id);
-          return persona?.name || persona?.notify || nombres[i];
-        });
-      } catch (e) {}
+      for (const id of unicas) {
+        let nombreFinal = null;
+        
+        // 1. Buscamos en los participantes del grupo
+        if (participants) {
+          const persona = participants.find(p => 
+            p.id === id || 
+            p.jid === id || 
+            p.lid === id || 
+            p.phoneNumber === id
+          );
+          
+          if (persona) {
+            nombreFinal = persona.name || persona.notify || persona.vname;
+          }
+        }
+
+        // 2. Si no lo encontramos, usamos el pushName del mensaje (si está disponible)
+        if (!nombreFinal && msg.pushName && id === msg.sender) {
+          nombreFinal = msg.pushName;
+        }
+
+        // 3. Si aún no hay nombre, usamos el número (como último recurso)
+        if (!nombreFinal) {
+          nombreFinal = id.split('@')[0].split(':')[0];
+        }
+
+        nombres.push(nombreFinal);
+      }
+
+      console.log(`💘 [SHIP] Nombres detectados: ${nombres[0]} y ${nombres[1]}`);
 
       // ✅ Verificamos que la imagen exista
       if (!fs.existsSync(RUTA_FONDO)) {
         return msg.reply('❌ La imagen de fondo no se encontró. Asegúrate de subir "fotoship.jpg" a la carpeta principal del bot.');
       }
 
-      console.log(`💘 [SHIP] Generando tarjeta con imagen de fondo local...`);
-
-      // ✅ 1. Leemos la imagen local
       const bufferFondo = fs.readFileSync(RUTA_FONDO);
 
-      // ✅ 2. Creamos el SVG con los textos (transparente)
+      // ✅ Diseño de la tarjeta
       const svgTextos = `
       <svg xmlns="http://www.w3.org/2000/svg" width="900" height="600" viewBox="0 0 900 600">
-        <!-- Fondo semitransparente para que el texto se lea -->
         <rect width="900" height="600" fill="rgba(0,0,0,0.4)" />
         
         <text x="450" y="100" text-anchor="middle" font-family="Arial" font-size="45" font-weight="bold" fill="#ff477e">LOVE MATCH</text>
@@ -94,9 +113,8 @@ export default {
         <text x="450" y="540" text-anchor="middle" font-family="Arial" font-size="24" fill="#ffffff">${escaparXML(frase)}</text>
       </svg>`;
 
-      // ✅ 3. Combinamos la imagen local con los textos
       const imagenFinal = await sharp(bufferFondo)
-        .resize(900, 600) // Redimensionamos para que encaje bien
+        .resize(900, 600)
         .composite([{ input: Buffer.from(svgTextos), top: 0, left: 0 }])
         .png()
         .toBuffer();

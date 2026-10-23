@@ -19,14 +19,17 @@ export default {
 
 *📌 Ejemplos:*
 > \`.codigo comando para dar advertencias\`
-> \`.codigo comando para stickers\`
-
-> 💡 *Nota:* El bot usará IA para generar el código.`);
+> \`.codigo comando para stickers\``);
       }
 
       console.log(`💻 [CODIGO] Consulta: ${consulta}`);
 
-      // ✅ Prompt optimizado (más corto y directo)
+      // ✅ Función para limpiar la respuesta
+      const limpiarRespuesta = (texto) => {
+        return texto.replace(/```javascript/g, '```js');
+      };
+
+      // ✅ PROMPT
       const prompt = `Escribe un comando para un bot de WhatsApp en Node.js (Baileys).
 Usa esta estructura exacta:
 import db from "#db"
@@ -39,55 +42,66 @@ export default {
 No uses 'conn' ni 'm'. Responde solo con el código en un bloque markdown.
 Tarea: ${consulta}`;
 
-      const urlAPI = `https://api.delirius.online/ia/chatgpt?q=${encodeURIComponent(prompt)}`;
-      
-      console.log(`🌐 [CODIGO] Consultando API...`);
-      const res = await fetch(urlAPI, {
-        headers: { 'User-Agent': 'Mozilla/5.0' }
-      });
+      let respuestaIA = null;
 
-      const textoRespuesta = await res.text();
-      let json = JSON.parse(textoRespuesta);
-      let respuestaIA = json.result || json.response || json.message;
-
-      // ✅ Si falla la primera vez, intentamos con un prompt aún más simple
-      if (!respuestaIA || respuestaIA.toLowerCase().includes('no response')) {
-        console.log('⚠️ [CODIGO] Falló intento 1. Reintentando con prompt simple...');
+      // ✅ INTENTO 1: API de Delirius
+      try {
+        console.log(`🌐 [CODIGO] Consultando API 1 (Delirius)...`);
+        const urlAPI = `https://api.delirius.online/ia/chatgpt?q=${encodeURIComponent(prompt)}`;
+        const res = await fetch(urlAPI, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+        const textoRespuesta = await res.text();
         
-        const promptSimple = `Escribe código JavaScript puro para: ${consulta}`;
-        const res2 = await fetch(`https://api.delirius.online/ia/chatgpt?q=${encodeURIComponent(promptSimple)}`);
-        const json2 = await res2.json();
-        respuestaIA = json2.result || json2.response || json2.message;
+        if (!textoRespuesta.startsWith('<!DOCTYPE') && !textoRespuesta.startsWith('<html')) {
+          const json = JSON.parse(textoRespuesta);
+          respuestaIA = json.result || json.response || json.message;
+        }
+      } catch (e) {
+        console.log('⚠️ [CODIGO] API 1 falló:', e.message);
       }
 
-      // ✅ Si sigue fallando, usamos la API de respaldo (otra IA)
+      // ✅ INTENTO 2: API de respaldo (Vreden)
       if (!respuestaIA || respuestaIA.toLowerCase().includes('no response')) {
-        console.log('⚠️ [CODIGO] Falló intento 2. Usando API de respaldo...');
         try {
-          const res3 = await fetch(`https://api.delirius.online/ia/chatgpt?q=${encodeURIComponent(consulta)}`);
-          const json3 = await res3.json();
-          respuestaIA = json3.result || json3.response || json3.message;
+          console.log(`🌐 [CODIGO] Consultando API 2 (Respaldo)...`);
+          const urlAPI2 = `https://api.vreden.web.id/api/chatgpt?query=${encodeURIComponent(prompt)}`;
+          const res2 = await fetch(urlAPI2, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+          const json2 = await res2.json();
+          
+          // Vreden devuelve la respuesta en result.response o result.message
+          respuestaIA = json2.result?.response || json2.result?.message || json2.message;
         } catch (e) {
-          console.error('❌ Error en API de respaldo:', e.message);
+          console.log('⚠️ [CODIGO] API 2 falló:', e.message);
         }
       }
 
-      if (!respuestaIA) {
-        return msg.reply('❌ La IA está muy saturada en este momento. Intenta de nuevo en unos minutos o usa un comando más corto.');
+      // ✅ INTENTO 3: API de respaldo 2 (Fgsi)
+      if (!respuestaIA || respuestaIA.toLowerCase().includes('no response')) {
+        try {
+          console.log(`🌐 [CODIGO] Consultando API 3 (Respaldo 2)...`);
+          const urlAPI3 = `https://api-fgsi.vercel.app/api/ai/gpt?q=${encodeURIComponent(prompt)}`;
+          const res3 = await fetch(urlAPI3, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+          const json3 = await res3.json();
+          
+          respuestaIA = json3.result || json3.message;
+        } catch (e) {
+          console.log('⚠️ [CODIGO] API 3 falló:', e.message);
+        }
       }
 
-      // Limpiamos la respuesta para que no se vea fea
-      respuestaIA = respuestaIA.replace(/```javascript/g, '```js');
+      // ✅ Si todas las APIs fallan
+      if (!respuestaIA) {
+        return msg.reply('❌ Todas las APIs de IA están caídas en este momento. Intenta de nuevo más tarde.');
+      }
 
-      console.log(`✅ [CODIGO] Respuesta generada. Enviando...`);
-
+      console.log(`✅ [CODIGO] Respuesta generada con éxito.`);
+      
       await sock.sendMessage(msg.chat, {
-        text: `💻 *Asistente de Código*\n\n${respuestaIA}`
+        text: `💻 *Asistente de Código*\n\n${limpiarRespuesta(respuestaIA)}`
       }, { quoted: msg });
 
     } catch (e) {
       console.error("❌ [CODIGO ERROR]:", e.message);
-      msg.reply('❌ Ocurrió un error al generar el código. La API puede estar caída.');
+      msg.reply('❌ Ocurrió un error al generar el código.');
     }
   }
 };

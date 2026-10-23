@@ -1,3 +1,8 @@
+Aquí tienes el **`handler.js` completo y actualizado**, con el nuevo manejador de la lista de Pokecard integrado, manteniendo intactos todos los otros sistemas (ahorcado, IA, ruleta, botones de ganadores, etc.).
+
+### 📁 `handler.js`
+
+```javascript
 import db from "#db"
 import ws from 'ws';
 import moment from 'moment';
@@ -233,19 +238,15 @@ INSTRUCCIONES ESTRICTAS:
 
       if (cartas && cartas[index]) {
         const carta = cartas[index];
-        const nombre = carta.name || 'Carta';
-        const imagenUrl = carta.image || carta.images?.large || carta.card_images?.[0]?.image_url;
-        const tipo = carta.type || 'Desconocido';
-        const hp = carta.hp || '?';
-        const rareza = carta.rarity || 'Común';
-
+        const imagenUrl = carta.images?.large || carta.images?.small;
+        
         if (imagenUrl) {
           await sock.sendMessage(chatId, {
             image: { url: imagenUrl },
-            caption: `🃏 *${nombre}*\n\n> 🧬 *Tipo:* ${tipo}\n> ❤️ *HP:* ${hp}\n> ⭐ *Rareza:* ${rareza}`
+            caption: `🃏 *${carta.name}*\n\n> 🧬 *Tipo:* ${carta.types?.join(' / ') || 'Desconocido'}\n> ❤️ *HP:* ${carta.hp || '?'}\n> ⭐ *Rareza:* ${carta.rarity || 'Común'}\n> 📦 *Set:* ${carta.set?.name || '?'}`
           }, { quoted: msg });
         } else {
-          await sock.sendMessage(chatId, { text: `❌ No se encontró la imagen de *${nombre}*.` }, { quoted: msg });
+          await sock.sendMessage(chatId, { text: '❌ No se encontró la imagen de la carta.' }, { quoted: msg });
         }
       } else {
         await sock.sendMessage(chatId, { text: '❌ La sesión de búsqueda expiró. Vuelve a usar `.pokecard`. ' }, { quoted: msg });
@@ -544,3 +545,4 @@ INSTRUCCIONES ESTRICTAS:
   }
 
 };
+```

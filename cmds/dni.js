@@ -12,18 +12,18 @@ export default {
         return msg.reply('❌ Debes ingresar un DNI válido de 8 dígitos.\n\n*Ejemplo:* `.dni 12345678`');
       }
 
-      // ✅ IMPORTANTE: Pega aquí el NUEVO token que generes
+      // ✅ PEGA AQUÍ TU NUEVO TOKEN (el que regeneraste)
       const token = '3PTHRsi2QxhKDHrcwu2izm1p0iLRIUrXk2uR5SknsmneA31K8W3LHmKThsba'; 
       
-      // ✅ Aquí va la URL exacta. Debes verificar en la documentación de Codart cuál es la ruta correcta.
-      const apiUrl = `https://api-codart.cgrt.org/api/dni/${dni}`; 
+      // ✅ PEGA AQUÍ LA URL EXACTA QUE TE DIO CODART
+      const apiUrl = `https://api-codart.cgrt.org/LA_RUTA_EXACTA/${dni}`; 
 
-      console.log(`🔍 [RENIEC] Consultando DNI: ${dni}`);
+      console.log(`🔍 [RENIEC] Consultando DNI: ${dni} en ${apiUrl}`);
 
       const res = await fetch(apiUrl, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${token}`, // O como lo pida la API (puede ser 'x-api-key' o similar)
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
@@ -34,7 +34,6 @@ export default {
 
       const json = await res.json();
       
-      // ⚠️ Ajusta esto según cómo te devuelva los datos la API de Codart
       if (!json.success || !json.data) {
         return msg.reply('❌ No se encontró información para ese DNI.');
       }

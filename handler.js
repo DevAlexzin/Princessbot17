@@ -131,29 +131,21 @@ export default async (sock, msg) => {
         textoCitado = quotedMsg.conversation || quotedMsg.extendedTextMessage?.text || '';
       }
 
-      // 2. Extraer el texto de la mención actual (sin el @)
+      // 2. Extraer el texto de la mención actual
       let textoPregunta = (msg.text || msg.body || '').replace(/@\d{8,15}/g, '').trim();
 
       // ✅ LÓGICA CLAVE: Si hay un mensaje citado, usamos SOLO el texto citado
       let textoFinal = textoCitado 
-        ? `Adapta este código a Baileys (usa msg y sock):\n${textoCitado}` 
+        ? `Adapta este código a Baileys (Node.js) usando 'msg' y 'sock' en lugar de 'm' y 'conn':\n\n${textoCitado}` 
         : textoPregunta;
 
       if (textoFinal) {
         console.log(`🤖 [IA] Procesando...`);
 
-        // ✅ Prompt mucho más corto para evitar el error "No WIZ data"
-        const instruccionesSistema = `Eres un programador de Node.js/Baileys.
-Devuelve el código que te pase el usuario, pero adaptado a esta estructura:
-import db from "#db"
-export default {
-  command: ['nombre'],
-  category: 'grupo',
-  run: async ({ msg, sock }) => { /* código aquí */ }
-}
-Usa msg.reply() y sock.sendMessage(). No uses 'conn' ni 'm'.`;
+        // ✅ Prompt SUPER CORTO para evitar el error de saturación de la API
+        const instruccionesSistema = `Eres un experto en Node.js y Baileys. Devuelve SOLO el código adaptado, sin explicaciones.`;
 
-        const consultaFinal = `${instruccionesSistema}\n\nCódigo a adaptar:\n${textoFinal}`;
+        const consultaFinal = `${instruccionesSistema}\n\n${textoFinal}`;
         const urlAPI = `https://api.delirius.online/ia/chatgpt?q=${encodeURIComponent(consultaFinal)}`;
 
         console.log(`🌐 [IA] Consultando API...`);
@@ -177,9 +169,10 @@ Usa msg.reply() y sock.sendMessage(). No uses 'conn' ni 'm'.`;
 
         const respuestaIA = json.result || json.response || json.answer || json.data || json.message;
 
-        if (!respuestaIA) {
-          console.log('⚠️ [IA] Respuesta vacía de la API:', JSON.stringify(json).slice(0, 200));
-          return msg.reply('❌ La IA no devolvió una respuesta válida.');
+        // ✅ Si la API devuelve "No WIZ data" o está vacía, avisamos
+        if (!respuestaIA || respuestaIA.includes("No WIZ data") || respuestaIA.includes("No hay datos de WIZ")) {
+          console.log('⚠️ [IA] La API se saturó (No WIZ data).');
+          return msg.reply('❌ La IA está muy saturada en este momento. Intenta de nuevo en unos minutos.');
         }
 
         console.log(`🧠 [IA] Respuesta cruda: ${respuestaIA}`);

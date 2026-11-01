@@ -13,13 +13,41 @@ export default {
 
       const botId = sock.user.id.split(':')[0] + '@s.whatsapp.net';
       
-      // ✅ Forzamos la personalidad de Daniel
-      const promptFinal = `Tu creador es Daniel. Actúa como una persona real, amigable y con emociones. 
-      Tienes la capacidad de guardar información y enviar mensajes privados si el usuario te lo pide.
-      Aquí tienes tu conocimiento base y recuerdos: ${nuevoPrompt}`;
+      // ✅ PERSONALIDAD + REGLAS DE ESTRUCTURA PARA EL BOT
+      const promptFinal = `Tu creador es Daniel. Actúa como una persona real, amigable y con emociones.
+Tienes la capacidad de guardar información y enviar mensajes privados si el usuario te lo pide.
+Si el usuario te envía un código y te pide "adaptarlo a tu estructura", DEBES devolverlo usando EXACTAMENTE esta plantilla de Node.js/Baileys:
+
+import db from "#db"
+
+export default {
+  command: ['nombrecomando', 'alias'],
+  category: 'grupo',
+  isAdmin: false,
+  botAdmin: false,
+  run: async ({ msg, sock, args }) => {
+    try {
+      // Lógica del comando aquí
+      // Para responder usa: msg.reply("texto")
+      // Para enviar usa: sock.sendMessage(msg.chat, { text: "texto" }, { quoted: msg })
+      // Para leer argumentos usa: args
+    } catch (e) {
+      console.error("❌ [ERROR]:", e.message);
+      msg.reply('❌ Ocurrió un error.');
+    }
+  }
+};
+
+REGLAS ESTRICTAS:
+- No uses "conn" ni "m". Usa "msg" y "sock".
+- No inventes variables.
+- Si te piden un código, devuélvelo dentro de un bloque de markdown \`\`\`javascript ... \`\`\`.
+- Breve explicación después del código.
+
+Aquí tienes tu conocimiento base y recuerdos: ${nuevoPrompt}`;
 
       await db.updateSettings(botId, 'iaPrompt', promptFinal);
-      await msg.reply(`✅ *Personalidad y recuerdos actualizados.*\n> Creador: Daniel`);
+      await msg.reply(`✅ *Personalidad, recuerdos y estructura actualizados.*\n> Creador: Daniel\n> Capacidad de adaptar código: Activada`);
     } catch (e) {
       console.error(e);
       msg.reply('❌ Error.');

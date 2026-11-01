@@ -123,23 +123,25 @@ export default async (sock, msg) => {
   // ============================================================
   if (msg.isGroup && msg.mentionedJid?.includes(botJid)) {
     try {
-      // 1. Extraemos el texto de la mención
-      let textoPregunta = (msg.text || msg.body || '').replace(/@\d{8,15}/g, '').trim();
-
-      // 2. ✅ Si está respondiendo a un mensaje, extraemos el texto citado
-      let textoCitado = '';
+      // 1. Detectar si el mensaje es una respuesta a otro mensaje
       const quotedMsg = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+      let textoCitado = '';
+
       if (quotedMsg) {
         textoCitado = quotedMsg.conversation || quotedMsg.extendedTextMessage?.text || '';
       }
 
-      // Si hay texto citado y el usuario pidió adaptar/leer, lo unimos
-      if (textoCitado) {
-        textoPregunta = `El usuario responde al siguiente mensaje:\n"""${textoCitado}"""\n\nPetición del usuario: ${textoPregunta}`;
-      }
+      // 2. Extraer el texto de la mención actual (sin el @)
+      let textoPregunta = (msg.text || msg.body || '').replace(/@\d{8,15}/g, '').trim();
 
-      if (textoPregunta) {
-        console.log(`🤖 [IA] Pregunta: ${textoPregunta}`);
+      // ✅ LÓGICA CLAVE: Si hay un mensaje citado, usamos SOLO el texto citado
+      // Si no hay mensaje citado, usamos el texto que escribió el usuario
+      let textoFinal = textoCitado 
+        ? `El usuario te envía este código para que lo adaptes a tu estructura:\n\n"""\n${textoCitado}\n"""\n\nInstrucción: ${textoPregunta}` 
+        : textoPregunta;
+
+      if (textoFinal) {
+        console.log(`🤖 [IA] Procesando: ${textoFinal.slice(0, 100)}...`);
 
         const promptGuardado = settings.iaPrompt || 'Eres un asistente amigable. Tu creador es Daniel.';
         const memoriaChat = chatData.iaMemoria || [];
@@ -155,7 +157,7 @@ INSTRUCCIONES ESTRICTAS:
 4. Si te piden adaptar un código a tu estructura, devuélvelo usando la plantilla de Node.js/Baileys (export default, run: async, msg, sock).
 5. Si solo te hablan normal, responde normal.`;
 
-        const consultaFinal = `Instrucciones: ${instruccionesSistema}. Usuario dice: ${textoPregunta}`;
+        const consultaFinal = `Instrucciones: ${instruccionesSistema}. Usuario dice: ${textoFinal}`;
         const urlAPI = `https://api.delirius.online/ia/chatgpt?q=${encodeURIComponent(consultaFinal)}`;
 
         console.log(`🌐 [IA] Consultando API...`);

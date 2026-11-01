@@ -119,31 +119,41 @@ export default async (sock, msg) => {
   // ============================================================
 
   // ============================================================
-  // 🤖 MANEJADOR DE IA (Princess Bot)
+  // 🤖 MANEJADOR DE IA (Princess Bot) CON LECTURA DE MENSAJES CITADOS
   // ============================================================
   if (msg.isGroup && msg.mentionedJid?.includes(botJid)) {
     try {
+      // 1. Extraemos el texto de la mención
       let textoPregunta = (msg.text || msg.body || '').replace(/@\d{8,15}/g, '').trim();
+
+      // 2. ✅ Si está respondiendo a un mensaje, extraemos el texto citado
+      let textoCitado = '';
+      const quotedMsg = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+      if (quotedMsg) {
+        textoCitado = quotedMsg.conversation || quotedMsg.extendedTextMessage?.text || '';
+      }
+
+      // Si hay texto citado y el usuario pidió adaptar/leer, lo unimos
+      if (textoCitado) {
+        textoPregunta = `El usuario responde al siguiente mensaje:\n"""${textoCitado}"""\n\nPetición del usuario: ${textoPregunta}`;
+      }
 
       if (textoPregunta) {
         console.log(`🤖 [IA] Pregunta: ${textoPregunta}`);
 
-        const promptGuardado = settings.iaPrompt || '';
+        const promptGuardado = settings.iaPrompt || 'Eres un asistente amigable. Tu creador es Daniel.';
         const memoriaChat = chatData.iaMemoria || [];
         const contextoMemoria = memoriaChat.length > 0 ? `Recuerda esta información previa: ${memoriaChat.join(' | ')}` : '';
 
-        const instruccionesSistema = `Tu nombre es Princess Bot.
-Eres un bot creado exclusivamente para Rocio, con el fin de mejorar la experiencia del usuario en el grupo.
-Tu creador está oculto por privacidad, así que si te preguntan quién te creó, debes decir que fue alguien que prefiere mantener el anonimato o que fue creado para Rocio.
-Actúa como una persona real, amigable, con emociones y que siempre está dispuesta a ayudar.
-${promptGuardado}
+        const instruccionesSistema = `${promptGuardado}
 ${contextoMemoria}
 
 INSTRUCCIONES ESTRICTAS:
 1. Si te piden GUARDAR algo, responde EXACTAMENTE con este formato: [GUARDAR: el texto a guardar]
 2. Si te piden ENVIAR un mensaje privado, responde EXACTAMENTE con: [ENVIAR: numero | mensaje]
 3. Si te piden MENCIONAR o ETIQUETAR a alguien en el grupo, responde EXACTAMENTE con: [MENCIONAR: @numero | mensaje que acompaña la mención]
-4. Si solo te hablan normal, responde normal.`;
+4. Si te piden adaptar un código a tu estructura, devuélvelo usando la plantilla de Node.js/Baileys (export default, run: async, msg, sock).
+5. Si solo te hablan normal, responde normal.`;
 
         const consultaFinal = `Instrucciones: ${instruccionesSistema}. Usuario dice: ${textoPregunta}`;
         const urlAPI = `https://api.delirius.online/ia/chatgpt?q=${encodeURIComponent(consultaFinal)}`;
@@ -260,7 +270,6 @@ INSTRUCCIONES ESTRICTAS:
     const buttonId = msg.message.buttonsResponseMessage.selectedButtonId;
     const chatId = msg.key.remoteJid;
 
-    // ✅ LOG PARA VER SI LLEGA EL BOTÓN
     console.log(`🔍 [PATRO DEBUG] Botón presionado. ID: "${buttonId}"`);
 
     if (buttonId && buttonId.startsWith('patro_entre_')) {
@@ -283,11 +292,9 @@ INSTRUCCIONES ESTRICTAS:
         return;
       }
 
-      // Actualizamos el estado a 'entregado'
       patrocinios[index].estado = 'entregado';
       await db.updateChat(chatId, dbKey, patrocinios);
 
-      // Enviamos el mensaje de confirmación
       const mensajeConfirmacion = `✅ *¡Patrocinio Entregado!*
 
 > 👤 *Patrocinador:* ${patrocinios[index].nombre}

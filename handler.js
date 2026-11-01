@@ -135,29 +135,25 @@ export default async (sock, msg) => {
       let textoPregunta = (msg.text || msg.body || '').replace(/@\d{8,15}/g, '').trim();
 
       // ✅ LÓGICA CLAVE: Si hay un mensaje citado, usamos SOLO el texto citado
-      // Si no hay mensaje citado, usamos el texto que escribió el usuario
       let textoFinal = textoCitado 
-        ? `El usuario te envía este código para que lo adaptes a tu estructura:\n\n"""\n${textoCitado}\n"""\n\nInstrucción: ${textoPregunta}` 
+        ? `Adapta este código a Baileys (usa msg y sock):\n${textoCitado}` 
         : textoPregunta;
 
       if (textoFinal) {
-        console.log(`🤖 [IA] Procesando: ${textoFinal.slice(0, 100)}...`);
+        console.log(`🤖 [IA] Procesando...`);
 
-        const promptGuardado = settings.iaPrompt || 'Eres un asistente amigable. Tu creador es Daniel.';
-        const memoriaChat = chatData.iaMemoria || [];
-        const contextoMemoria = memoriaChat.length > 0 ? `Recuerda esta información previa: ${memoriaChat.join(' | ')}` : '';
+        // ✅ Prompt mucho más corto para evitar el error "No WIZ data"
+        const instruccionesSistema = `Eres un programador de Node.js/Baileys.
+Devuelve el código que te pase el usuario, pero adaptado a esta estructura:
+import db from "#db"
+export default {
+  command: ['nombre'],
+  category: 'grupo',
+  run: async ({ msg, sock }) => { /* código aquí */ }
+}
+Usa msg.reply() y sock.sendMessage(). No uses 'conn' ni 'm'.`;
 
-        const instruccionesSistema = `${promptGuardado}
-${contextoMemoria}
-
-INSTRUCCIONES ESTRICTAS:
-1. Si te piden GUARDAR algo, responde EXACTAMENTE con este formato: [GUARDAR: el texto a guardar]
-2. Si te piden ENVIAR un mensaje privado, responde EXACTAMENTE con: [ENVIAR: numero | mensaje]
-3. Si te piden MENCIONAR o ETIQUETAR a alguien en el grupo, responde EXACTAMENTE con: [MENCIONAR: @numero | mensaje que acompaña la mención]
-4. Si te piden adaptar un código a tu estructura, devuélvelo usando la plantilla de Node.js/Baileys (export default, run: async, msg, sock).
-5. Si solo te hablan normal, responde normal.`;
-
-        const consultaFinal = `Instrucciones: ${instruccionesSistema}. Usuario dice: ${textoFinal}`;
+        const consultaFinal = `${instruccionesSistema}\n\nCódigo a adaptar:\n${textoFinal}`;
         const urlAPI = `https://api.delirius.online/ia/chatgpt?q=${encodeURIComponent(consultaFinal)}`;
 
         console.log(`🌐 [IA] Consultando API...`);

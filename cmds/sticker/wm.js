@@ -21,12 +21,15 @@ export default {
 
       // 2. Separamos el texto por "|" para obtener Packname y Autor
       let [packname, ...author] = (text || '').split('|');
-      packname = (packname || '').trim();
-      author = (author || []).join('|').trim();
+      
+      // ✅ CORRECCIÓN: Si está vacío, ponemos un texto por defecto. 
+      // sharp exige que no haya valores vacíos.
+      packname = (packname || '').trim() || 'Princess Bot';
+      author = (author || []).join('|').trim() || 'WhatsApp';
 
       console.log(`🏷️ [WM] Agregando metadatos: Pack="${packname}", Autor="${author}"`);
 
-      // 3. Descargamos el sticker a memoria (sin archivos temporales)
+      // 3. Descargamos el sticker
       const imgBuffer = await quoted.download();
       if (!imgBuffer) {
         return msg.reply('✎ No se pudo descargar el sticker.');

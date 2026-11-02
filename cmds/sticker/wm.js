@@ -1,8 +1,5 @@
 import db from "#db"
-import fs from 'fs'
-import path from 'path'
-import exif from '../../lib/exif.js' // ✅ Ruta correcta
-const { writeExif } = exif // ✅ Usamos writeExif en lugar de addExif
+import sharp from 'sharp'
 
 export default {
   command: ['take', 'wm', 'marca'],
@@ -26,32 +23,36 @@ export default {
       let [packname, ...author] = (text || '').split('|');
       author = (author || []).join('|');
 
+      console.log(`🏷️ [WM] Agregando metadatos: Pack="${packname.trim()}", Autor="${author.trim()}"`);
+
       // 3. Descargamos el sticker
-      const img = await quoted.download();
-      if (!img) {
+      const imgBuffer = await quoted.download();
+      if (!imgBuffer) {
         return msg.reply('✎ No se pudo descargar el sticker.');
       }
 
-      console.log(`🏷️ [WM] Agregando metadatos: Pack="${packname}", Autor="${author}"`);
-      
-      // ✅ Usamos writeExif igual que en tu comando .s
-      const media = { mimetype: mime, data: img }
-      const metadata = { packname: packname.trim() || '', author: author.trim() || '', categories: [''] }
-      const stickerPath = await writeExif(media, metadata)
+      // 4. Usamos sharp para modificar los metadatos
+      // sharp permite inyectar el EXIF (packname y author) directamente
+      const stickerBuffer = await sharp(imgBuffer)
+        .webp({ quality: 80 }) // Lo procesamos como WebP
+        .withMetadata({
+          exif: {
+            IFD0: {
+              ImageDescription: packname.trim() || '',
+              Artist: author.trim() || ''
+            }
+          }
+        })
+        .toBuffer();
 
-      if (!stickerPath) {
+      if (!stickerBuffer) {
         return msg.reply('✎ No se pudo procesar el sticker.');
       }
 
       // 5. Enviamos el sticker modificado
       await sock.sendMessage(msg.chat, {
-        sticker: { url: stickerPath }
+        sticker: stickerBuffer
       }, { quoted: msg });
-
-      // 6. Eliminamos el archivo temporal
-      if (fs.existsSync(stickerPath)) {
-        fs.unlinkSync(stickerPath);
-      }
 
       console.log('✅ [WM] Sticker con metadatos enviado.');
 

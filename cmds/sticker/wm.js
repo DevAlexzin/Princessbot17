@@ -1,5 +1,5 @@
 import db from "#db"
-import sharp from 'sharp'
+import sharp from "sharp"
 
 export default {
   command: ['take', 'wm', 'marca'],
@@ -21,25 +21,25 @@ export default {
 
       // 2. Separamos el texto por "|" para obtener Packname y Autor
       let [packname, ...author] = (text || '').split('|');
-      author = (author || []).join('|');
+      packname = (packname || '').trim();
+      author = (author || []).join('|').trim();
 
-      console.log(`🏷️ [WM] Agregando metadatos: Pack="${packname.trim()}", Autor="${author.trim()}"`);
+      console.log(`🏷️ [WM] Agregando metadatos: Pack="${packname}", Autor="${author}"`);
 
-      // 3. Descargamos el sticker
+      // 3. Descargamos el sticker a memoria (sin archivos temporales)
       const imgBuffer = await quoted.download();
       if (!imgBuffer) {
         return msg.reply('✎ No se pudo descargar el sticker.');
       }
 
-      // 4. Usamos sharp para modificar los metadatos
-      // sharp permite inyectar el EXIF (packname y author) directamente
+      // 4. Usamos sharp para inyectar los metadatos EXIF
       const stickerBuffer = await sharp(imgBuffer)
-        .webp({ quality: 80 }) // Lo procesamos como WebP
+        .webp({ quality: 80 })
         .withMetadata({
           exif: {
             IFD0: {
-              ImageDescription: packname.trim() || '',
-              Artist: author.trim() || ''
+              ImageDescription: packname,
+              Artist: author
             }
           }
         })

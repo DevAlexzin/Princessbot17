@@ -1,8 +1,8 @@
 import db from "#db"
 import fs from 'fs'
 import path from 'path'
-import exif from '../../lib/exif.js' // ✅ Ruta correcta a tu carpeta lib
-const { addExif } = exif
+import exif from '../../lib/exif.js' // ✅ Ruta correcta
+const { writeExif } = exif // ✅ Usamos writeExif en lugar de addExif
 
 export default {
   command: ['take', 'wm', 'marca'],
@@ -32,19 +32,26 @@ export default {
         return msg.reply('✎ No se pudo descargar el sticker.');
       }
 
-      // 4. Añadimos los metadatos con la función addExif
       console.log(`🏷️ [WM] Agregando metadatos: Pack="${packname}", Autor="${author}"`);
       
-      const stickerBuffer = await addExif(img, packname.trim(), author.trim());
+      // ✅ Usamos writeExif igual que en tu comando .s
+      const media = { mimetype: mime, data: img }
+      const metadata = { packname: packname.trim() || '', author: author.trim() || '', categories: [''] }
+      const stickerPath = await writeExif(media, metadata)
 
-      if (!stickerBuffer) {
+      if (!stickerPath) {
         return msg.reply('✎ No se pudo procesar el sticker.');
       }
 
       // 5. Enviamos el sticker modificado
       await sock.sendMessage(msg.chat, {
-        sticker: stickerBuffer
+        sticker: { url: stickerPath }
       }, { quoted: msg });
+
+      // 6. Eliminamos el archivo temporal
+      if (fs.existsSync(stickerPath)) {
+        fs.unlinkSync(stickerPath);
+      }
 
       console.log('✅ [WM] Sticker con metadatos enviado.');
 

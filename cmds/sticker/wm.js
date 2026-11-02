@@ -1,5 +1,8 @@
 import db from "#db"
-import sharp from "sharp"
+import fs from 'fs'
+import path from 'path'
+import exif from '../../lib/exif.js'
+const { writeExif } = exif
 
 export default {
   command: ['take', 'wm', 'marca'],
@@ -19,15 +22,10 @@ export default {
         return msg.reply('✎ Responde a un *sticker* válido.');
       }
 
-      // 2. Separamos el texto por "|" para obtener Packname y Autor
+      // 2. Separamos el texto
       let [packname, ...author] = (text || '').split('|');
-      
-      // ✅ CORRECCIÓN: Si está vacío, ponemos un texto por defecto. 
-      // sharp exige que no haya valores vacíos.
       packname = (packname || '').trim() || 'Princess Bot';
       author = (author || []).join('|').trim() || 'WhatsApp';
-
-      console.log(`🏷️ [WM] Agregando metadatos: Pack="${packname}", Autor="${author}"`);
 
       // 3. Descargamos el sticker
       const imgBuffer = await quoted.download();
@@ -35,27 +33,33 @@ export default {
         return msg.reply('✎ No se pudo descargar el sticker.');
       }
 
-      // 4. Usamos sharp para inyectar los metadatos EXIF
-      const stickerBuffer = await sharp(imgBuffer)
-        .webp({ quality: 80 })
-        .withMetadata({
-          exif: {
-            IFD0: {
-              ImageDescription: packname,
-              Artist: author
-            }
-          }
-        })
-        .toBuffer();
+      // ✅ 4. CREAMOS LA CARPETA TEMPORAL PARA EVITAR EL ERROR ENOENT
+      const tmpDir = path.join(process.cwd(), 'lib', 'system', 'tmp');
+      if (!fs.existsSync(tmpDir)) {
+        fs.mkdirSync(tmpDir, { recursive: true });
+      }
 
-      if (!stickerBuffer) {
+      console.log(`🏷️ [WM] Agregando metadatos: Pack="${packname}", Autor="${author}"`);
+
+      // ✅ 5. Usamos writeExif que sí guarda los metadatos como los lee WhatsApp
+      const media = { mimetype: mime, data: imgBuffer }
+      const metadata = { packname: packname, author: author, categories: [''] }
+      
+      const stickerPath = await writeExif(media, metadata)
+
+      if (!stickerPath) {
         return msg.reply('✎ No se pudo procesar el sticker.');
       }
 
-      // 5. Enviamos el sticker modificado
+      // 6. Enviamos el sticker
       await sock.sendMessage(msg.chat, {
-        sticker: stickerBuffer
+        sticker: { url: stickerPath }
       }, { quoted: msg });
+
+      // 7. Borramos el archivo temporal
+      if (fs.existsSync(stickerPath)) {
+        fs.unlinkSync(stickerPath);
+      }
 
       console.log('✅ [WM] Sticker con metadatos enviado.');
 

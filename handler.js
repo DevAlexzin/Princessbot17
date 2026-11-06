@@ -123,7 +123,6 @@ export default async (sock, msg) => {
   // ============================================================
   if (msg.isGroup && msg.mentionedJid?.includes(botJid)) {
     try {
-      // 1. Detectar si el mensaje es una respuesta a otro mensaje
       const quotedMsg = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
       let textoCitado = '';
 
@@ -131,10 +130,8 @@ export default async (sock, msg) => {
         textoCitado = quotedMsg.conversation || quotedMsg.extendedTextMessage?.text || '';
       }
 
-      // 2. Extraer el texto de la mención actual
       let textoPregunta = (msg.text || msg.body || '').replace(/@\d{8,15}/g, '').trim();
 
-      // ✅ LÓGICA CLAVE: Si hay un mensaje citado, usamos SOLO el texto citado
       let textoFinal = textoCitado 
         ? `Adapta este código a Baileys (Node.js) usando 'msg' y 'sock' en lugar de 'm' y 'conn':\n\n${textoCitado}` 
         : textoPregunta;
@@ -142,7 +139,6 @@ export default async (sock, msg) => {
       if (textoFinal) {
         console.log(`🤖 [IA] Procesando...`);
 
-        // ✅ Prompt SUPER CORTO para evitar el error de saturación de la API
         const instruccionesSistema = `Eres un experto en Node.js y Baileys. Devuelve SOLO el código adaptado, sin explicaciones.`;
 
         const consultaFinal = `${instruccionesSistema}\n\n${textoFinal}`;
@@ -169,7 +165,6 @@ export default async (sock, msg) => {
 
         const respuestaIA = json.result || json.response || json.answer || json.data || json.message;
 
-        // ✅ Si la API devuelve "No WIZ data" o está vacía, avisamos
         if (!respuestaIA || respuestaIA.includes("No WIZ data") || respuestaIA.includes("No hay datos de WIZ")) {
           console.log('⚠️ [IA] La API se saturó (No WIZ data).');
           return msg.reply('❌ La IA está muy saturada en este momento. Intenta de nuevo en unos minutos.');
@@ -547,10 +542,9 @@ export default async (sock, msg) => {
 
   const cmdData = global.comandos.get(command);
 
+  // ✅ SI EL COMANDO NO EXISTE O ESTÁ MUTEADO, SE IGNORA SILENCIOSAMENTE
   if (!cmdData || user.muted === 1 || user.muted === true) {
-    if (settings.prefijo === 1 || settings.prefijo === true || user.muted === 1 || user.muted === true) return
-    await sock.readMessages([msg.key])
-    return msg.reply(`ꕤ El comando *${command}* no existe.\n✎ Usa *${usedPrefix}help* para ver la lista de comandos disponibles.`)
+    return; 
   }
 
   const comando = msg.text.slice(usedPrefix.length)

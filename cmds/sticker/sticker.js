@@ -5,10 +5,6 @@ import path from 'path'
 import fetch from 'node-fetch'
 import sharp from 'sharp'
 import ffmpeg from 'fluent-ffmpeg'
-import ffmpegPath from '@ffmpeg-installer/ffmpeg'
-
-// Configuramos la ruta de ffmpeg
-ffmpeg.setFfmpegPath(ffmpegPath.path)
 
 export default {
   command: ['sticker', 's'],
@@ -136,7 +132,6 @@ export default {
       } else if (/video/.test(mime)) {
         console.log("🎥 [DEBUG] Procesando video...");
         
-        // Validación de duración (a veces la propiedad seconds no existe)
         const seconds = (quoted.msg || quoted).seconds;
         console.log(`⏱️ [DEBUG] Duración del video: ${seconds || 'Desconocida'} segundos`);
         

@@ -15,13 +15,13 @@ export default {
   category: 'stickers',
   run: async ({ msg, sock, args, command, text, usedPrefix: prefix }) => {
     try {
-      console.log("========================================");
+      console.log("\n========================================");
       console.log("🔍 [DEBUG] Comando 'sticker' ejecutado.");
       
       const quoted = msg.quoted ? msg.quoted : msg
       const mime = (quoted.msg || quoted).mimetype || ''
       
-      console.log("📄 [DEBUG] MIME detectado:", mime);
+      console.log("📄 [DEBUG] MIME detectado:", mime || "Desconocido");
 
       let user = await db.getUser(msg.sender)
       const name = user.name || 'Usuario'
@@ -36,23 +36,38 @@ export default {
 
       // ✅ FUNCIÓN PARA CREAR EL STICKER CON SHARP (Imágenes)
       const crearStickerImagen = async (buffer) => {
-        return await sharp(buffer)
-          .resize(512, 512, {
-            fit: 'contain',
-            background: { r: 0, g: 0, b: 0, alpha: 0 }
-          })
-          .webp({ quality: 80 })
-          .toBuffer();
+        console.log(`🖼️ [DEBUG] Iniciando conversión de imagen (${buffer.length} bytes)...`);
+        try {
+          const result = await sharp(buffer)
+            .resize(512, 512, {
+              fit: 'contain',
+              background: { r: 0, g: 0, b: 0, alpha: 0 }
+            })
+            .webp({ quality: 80 })
+            .toBuffer();
+          console.log(`✅ [DEBUG] Imagen convertida a WebP (${result.length} bytes).`);
+          return result;
+        } catch (err) {
+          console.error("❌ [DEBUG] Error en Sharp al convertir imagen:", err);
+          throw err;
+        }
       };
 
       // ✅ FUNCIÓN PARA CREAR EL STICKER CON FFMPEG (Videos)
       const crearStickerVideo = async (buffer) => {
         return new Promise((resolve, reject) => {
-          // Creamos archivos temporales para procesar el video
+          console.log(`🎥 [DEBUG] Iniciando conversión de video (${buffer.length} bytes)...`);
+          
           const tempInput = path.join(os.tmpdir(), `input_${Date.now()}.mp4`);
           const tempOutput = path.join(os.tmpdir(), `output_${Date.now()}.webp`);
           
-          fs.writeFileSync(tempInput, buffer);
+          try {
+            fs.writeFileSync(tempInput, buffer);
+            console.log(`💾 [DEBUG] Archivo temporal guardado en: ${tempInput}`);
+          } catch (err) {
+            console.error("❌ [DEBUG] Error al guardar archivo temporal de entrada:", err);
+            return reject(err);
+          }
 
           ffmpeg(tempInput)
             .addOutputOptions([
@@ -67,31 +82,46 @@ export default {
             ])
             .toFormat('webp')
             .save(tempOutput)
+            .on('start', (commandLine) => {
+              console.log('⚙️ [DEBUG] FFmpeg inició con el comando: ' + commandLine);
+            })
+            .on('progress', (progress) => {
+              console.log(`⏳ [DEBUG] Procesando video... ${progress.percent ? progress.percent.toFixed(2) + '%' : '...'}`);
+            })
             .on('end', () => {
-              const stickerBuffer = fs.readFileSync(tempOutput);
-              // Limpiamos los archivos temporales
+              console.log("✅ [DEBUG] FFmpeg terminó la conversión de video.");
               try {
-                fs.unlinkSync(tempInput);
-                fs.unlinkSync(tempOutput);
+                const stickerBuffer = fs.readFileSync(tempOutput);
+                console.log(`📦 [DEBUG] Sticker WebP generado (${stickerBuffer.length} bytes).`);
+                
+                // Limpiamos los archivos temporales
+                if (fs.existsSync(tempInput)) fs.unlinkSync(tempInput);
+                if (fs.existsSync(tempOutput)) fs.unlinkSync(tempOutput);
+                console.log("🧹 [DEBUG] Archivos temporales eliminados.");
+                
+                resolve(stickerBuffer);
               } catch (err) {
-                console.error("Error limpiando temporales:", err);
+                console.error("❌ [DEBUG] Error al leer el archivo de salida:", err);
+                reject(err);
               }
-              resolve(stickerBuffer);
             })
             .on('error', (err) => {
+              console.error("❌ [DEBUG] Error en FFmpeg:", err.message);
               try {
                 if (fs.existsSync(tempInput)) fs.unlinkSync(tempInput);
                 if (fs.existsSync(tempOutput)) fs.unlinkSync(tempOutput);
-              } catch (e) {}
+              } catch (e) {
+                console.error("❌ [DEBUG] Error limpiando temporales tras fallo:", e);
+              }
               reject(err);
             });
         });
       };
 
       if (/image/.test(mime) || /webp/.test(mime)) {
-        console.log("🖼️ [DEBUG] Procesando imagen o sticker...");
+        console.log("📥 [DEBUG] Descargando imagen...");
         let buffer = await quoted.download()
-        console.log(`📦 [DEBUG] Buffer descargado (${buffer.length} bytes)`);
+        console.log(`📦 [DEBUG] Buffer de imagen descargado (${buffer.length} bytes)`);
         
         const stickerBuffer = await crearStickerImagen(buffer);
         
@@ -101,13 +131,17 @@ export default {
           author: author
         }, { quoted: msg })
         
-        console.log("✅ [DEBUG] Sticker enviado correctamente.");
+        console.log("✅ [DEBUG] Sticker de imagen enviado correctamente.");
         
       } else if (/video/.test(mime)) {
         console.log("🎥 [DEBUG] Procesando video...");
         
-        if ((quoted.msg || quoted).seconds > 10) {
-          console.log("⚠️ [DEBUG] El video es demasiado largo.");
+        // Validación de duración (a veces la propiedad seconds no existe)
+        const seconds = (quoted.msg || quoted).seconds;
+        console.log(`⏱️ [DEBUG] Duración del video: ${seconds || 'Desconocida'} segundos`);
+        
+        if (seconds && seconds > 10) {
+          console.log("⚠️ [DEBUG] El video es demasiado largo. Cancelando.");
           return msg.reply('❖ El video no puede durar más de 10 segundos.');
         }
 
@@ -115,7 +149,6 @@ export default {
         let buffer = await quoted.download();
         console.log(`📦 [DEBUG] Video descargado (${buffer.length} bytes)`);
         
-        console.log("⏳ [DEBUG] Convirtiendo video a sticker...");
         const stickerBuffer = await crearStickerVideo(buffer);
         
         await sock.sendMessage(msg.chat, { 
@@ -138,7 +171,7 @@ export default {
         
         const buffer = Buffer.from(await res.arrayBuffer())
         const mimeUrl = res.headers.get('content-type') || '';
-        console.log(`📦 [DEBUG] Buffer desde URL (${buffer.length} bytes) | MIME: ${mimeUrl}`);
+        console.log(`📦 [DEBUG] Buffer desde URL descargado (${buffer.length} bytes) | MIME: ${mimeUrl}`);
         
         if (/video/.test(mimeUrl)) {
           const stickerBuffer = await crearStickerVideo(buffer);
@@ -159,11 +192,11 @@ export default {
         console.log("✅ [DEBUG] Sticker desde URL enviado.");
         
       } else {
-        console.log("⚠️ [DEBUG] No se detectó imagen, video ni URL.");
+        console.log("⚠️ [DEBUG] No se detectó imagen, video ni URL. MIME:", mime);
         return msg.reply(`❀ Por favor, envía una imagen, video o URL para hacer un sticker.`)
       }
     } catch (e) {
-      console.error("❌ [DEBUG ERROR CRÍTICO]:", e);
+      console.error("❌ [DEBUG ERROR CRÍTICO EN EL COMANDO]:", e);
       return msg.reply("❌ Ocurrió un error al crear el sticker.")
     }
   }

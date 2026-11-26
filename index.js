@@ -1,7 +1,8 @@
 import "./settings.js";
 import handler from '#handler';
 import events from '#events';
-import makeWASocket, { Browsers, makeCacheableSignalKeyStore, useMultiFileAuthState, fetchLatestBaileysVersion, jidDecode, DisconnectReason } from 'baileys';
+// ⚠️ AQUÍ ESTÁ LA CORRECCIÓN: Cambiamos 'baileys' por '@dnuzi/baileys'
+import makeWASocket, { Browsers, makeCacheableSignalKeyStore, useMultiFileAuthState, fetchLatestBaileysVersion, jidDecode, DisconnectReason } from '@dnuzi/baileys';
 import pino from "pino";
 import qrcode from "qrcode-terminal";
 import chalk from "chalk";

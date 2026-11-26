@@ -6,13 +6,11 @@ import crypto from 'crypto'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 import WebP from 'node-webpmux'
-import pkg from '@dnuzi/baileys'
-const { proto } = pkg
+import { proto, prepareWAMessageMedia } from '@dnuzi/baileys' // <-- Importación corregida
 
 const execFileAsync = promisify(execFile)
 
 // --- PARCHE CRÍTICO PARA EL PROTOBUF ---
-// Esto le enseña a la librería cómo empaquetar el audio dentro del sticker
 function patchProtobuf(protoRoot) {
   const Msg = protoRoot?.Message
   if (!Msg || Msg.__audioStickerPatched) return
@@ -44,7 +42,6 @@ export default {
       const mime = (quoted.msg || quoted).mimetype || '';
       const isVideo = /video/.test(mime);
 
-      // 1. Obtener metadatos del usuario
       let user = await db.getUser(msg.sender);
       const name = user.name || 'Usuario';
       let texto1 = user.metadatos || `S'Princess Bot`;
@@ -60,7 +57,7 @@ export default {
       console.log("🎥 [DEBUG] Video detectado, generando sticker con audio...");
       
       const seconds = (quoted.msg || quoted).seconds;
-      if (seconds && seconds > 25) { // El límite del audio suele ser 25s
+      if (seconds && seconds > 25) {
         return msg.reply('❖ El video es demasiado largo (máx. 25s).');
       }
 
@@ -75,14 +72,14 @@ export default {
       // 2. Convertir a WebP SIN audio (el audio va por separado)
       await execFileAsync('ffmpeg', [
         '-y', '-i', tempIn,
-        '-t', '5', // Límite de duración del sticker visual
+        '-t', '5',
         '-vf', 'scale=512:512:force_original_aspect_ratio=decrease,fps=15,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=#00000000',
         '-c:v', 'libwebp',
         '-lossless', '0',
         '-compression_level', '6',
         '-q:v', '50',
         '-loop', '0',
-        '-an', // Sin audio aquí
+        '-an',
         tempWebp
       ]);
 
@@ -101,7 +98,7 @@ export default {
       const stickerBuffer = fs.readFileSync(tempWebp);
       const audioBuffer = fs.readFileSync(tempAudio);
 
-      // 4. Inyectar metadatos EXIF al sticker (nombre del pack)
+      // 4. Inyectar metadatos EXIF al sticker
       const img = new WebP.Image();
       await img.load(stickerBuffer);
       
@@ -120,20 +117,18 @@ export default {
       img.exif = exif;
       const finalSticker = await img.save(null);
 
-      // 5. Preparar el mensaje de audio para adjuntarlo
-      const { audioMessage } = await pkg.prepareWAMessageMedia(
+      // 5. Preparar el mensaje de audio (Usando la función importada directamente)
+      const { audioMessage } = await prepareWAMessageMedia(
         { audio: audioBuffer, mimetype: 'audio/ogg; codecs=opus', ptt: true },
         { upload: sock.waUploadToServer }
       );
       
-      // Ajustar la duración del audio
       audioMessage.seconds = Math.min(25, seconds || 5);
       audioMessage.ptt = true;
 
-      // 6. Enviar el sticker con el audio ADJUNTO (La clave está aquí)
+      // 6. Enviar el sticker con el audio adjunto
       await sock.sendMessage(msg.chat, { 
         sticker: finalSticker,
-        // Al inyectar esto, la librería parcheada lo empaquetará correctamente
         audioMessage: audioMessage 
       }, { quoted: msg });
 
@@ -144,7 +139,7 @@ export default {
       
     } catch (e) {
       console.error("❌ [DEBUG ERROR CRÍTICO saudio]:", e);
-      return msg.reply("❌ Ocurrió un error al crear el sticker con audio. Revisa la consola.");
+      return msg.reply("❌ Ocurrió un error al crear el sticker con audio.");
     }
   }
 };

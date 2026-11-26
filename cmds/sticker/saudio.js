@@ -3,7 +3,7 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import ffmpeg from 'fluent-ffmpeg'
-import pkg from 'node-webpmux'; // <-- Importación corregida
+import pkg from 'node-webpmux';
 const { Image } = pkg;
 
 export default {
@@ -18,6 +18,7 @@ export default {
       const mime = (quoted.msg || quoted).mimetype || '';
       const isVideo = /video/.test(mime);
 
+      // 1. Obtener información del usuario para los metadatos
       let user = await db.getUser(msg.sender);
       const name = user.name || 'Usuario';
       let texto1 = user.metadatos || `S'Princess Bot`;
@@ -30,12 +31,13 @@ export default {
         return msg.reply('❖ Envía o responde a un *video* con `.saudio` para crear un sticker con su audio integrado.');
       }
 
+      console.log("🎥 [DEBUG] Video detectado, generando sticker con audio...");
+      
       const seconds = (quoted.msg || quoted).seconds;
       if (seconds && seconds > 10) {
         return msg.reply('❖ El video no puede durar más de 10 segundos.');
       }
 
-      console.log("🎥 [DEBUG] Video detectado, generando sticker con audio...");
       const buffer = await quoted.download();
       
       const tempIn = path.join(os.tmpdir(), `in_${Date.now()}.mp4`);
@@ -43,7 +45,7 @@ export default {
       
       fs.writeFileSync(tempIn, buffer);
 
-      // 1. Convertir video a WebP conservando el audio
+      // 2. Convertir video a WebP conservando el audio (libopus)
       await new Promise((resolve, reject) => {
         ffmpeg(tempIn)
           .addOutputOptions([
@@ -53,7 +55,6 @@ export default {
             "-ss", "00:00:00.0",
             "-t", "00:00:05.0",
             "-preset", "default",
-            // ⚠️ QUITAMOS EL "-an" PARA CONSERVAR EL AUDIO
             "-vsync", "0",
             "-c:a", "libopus",
             "-b:a", "64k"
@@ -69,7 +70,7 @@ export default {
 
       const stickerBuffer = fs.readFileSync(tempOut);
 
-      // 2. Inyectar metadatos (Packname y Author) usando node-webpmux
+      // 3. Inyectar metadatos (Packname y Author) usando node-webpmux
       const img = new Image();
       await img.load(stickerBuffer);
       
@@ -88,9 +89,11 @@ export default {
       img.exif = exif;
       const finalBuffer = await img.save(null);
 
-      // 3. Enviar el sticker con audio
+      // 4. ENVÍO CRÍTICO: Forzar el tipo de sticker y pasar el buffer final
       await sock.sendMessage(msg.chat, { 
-        sticker: finalBuffer
+        sticker: finalBuffer,
+        // Algunos forks necesitan que se especifique el mimetype para no perder el audio
+        mimetype: 'image/webp' 
       }, { quoted: msg });
 
       // Limpieza

@@ -4,10 +4,10 @@ import os from 'os'
 import path from 'path'
 import fetch from 'node-fetch'
 import ffmpeg from 'fluent-ffmpeg'
-import webpmux from 'node-webpmux' // ✅ Importación corregida para CommonJS
+import webpmux from 'node-webpmux'
 import crypto from 'crypto'
 
-const { Image } = webpmux; // ✅ Desestructuración de Image
+const { Image } = webpmux;
 
 export default {
   command: ['saudio', 'stickeraudio'],
@@ -53,21 +53,22 @@ export default {
             return reject(err);
           }
 
+          // ✅ CONVERSIÓN CORREGIDA: Forzamos libwebp_anim y aseguramos el audio
           ffmpeg(tempInput)
             .addOutputOptions([
-              "-vcodec", "libwebp",
+              "-vcodec", "libwebp_anim", // Especificamos el codec animado
               "-vf", "scale=512:512:force_original_aspect_ratio=decrease,fps=15,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=#00000000",
               "-loop", "0",
               "-ss", "00:00:00.0",
               "-t", "00:00:05.0",
               "-preset", "default",
               "-vsync", "0",
-              "-c:a", "libopus", 
+              "-c:a", "libopus",
               "-b:a", "64k",
               "-ac", "1",
-              "-ar", "48000"
+              "-ar", "48000",
+              "-f", "webp" // Forzamos el contenedor WebP
             ])
-            .toFormat('webp')
             .save(tempOutput)
             .on('start', (commandLine) => {
               console.log('⚙️ [DEBUG] FFmpeg inició con el comando: ' + commandLine);
@@ -90,12 +91,17 @@ export default {
                 const img = new Image();
                 await img.load(stickerBuffer);
                 
+                // ✅ Verificamos si el audio está presente en el WebP
+                const hasAudio = stickerBuffer.includes(Buffer.from('OPUS')) || stickerBuffer.includes(Buffer.from('VORB'));
+                console.log(`🔊 [DEBUG] ¿El WebP contiene datos de audio? ${hasAudio ? 'SÍ' : 'NO'}`);
+                
                 const json = {
                   "sticker-pack-id": crypto.randomBytes(32).toString('hex'),
                   "sticker-pack-name": pack,
                   "sticker-pack-publisher": author,
                   "emojis": ["🎵"],
-                  "is-avatar-sticker": 0
+                  "is-avatar-sticker": 0,
+                  "audio": hasAudio ? 1 : 0 // Flag adicional para algunos clientes
                 };
                 
                 const exifAttr = Buffer.from([

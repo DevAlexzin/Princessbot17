@@ -2,29 +2,27 @@ import db from "#db"
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import fetch from 'node-fetch'
-import ffmpeg from 'fluent-ffmpeg'
+import { execFile } from 'child_process'
+import { promisify } from 'util'
 import webpmux from 'node-webpmux'
 import crypto from 'crypto'
 
-const { Image } = webpmux;
+const execFileAsync = promisify(execFile)
+const { Image } = webpmux
 
 export default {
   command: ['saudio', 'stickeraudio'],
   category: 'stickers',
   run: async ({ msg, sock, args, command, text, usedPrefix: prefix }) => {
     try {
-      console.log("\n========================================");
-      console.log("🔍 [DEBUG] Comando 'saudio' ejecutado.");
-      
+      console.log("\n========================================")
+      console.log("🔍 [DEBUG] Comando 'saudio' ejecutado.")
+
       const quoted = msg.quoted ? msg.quoted : msg
       const mime = (quoted.msg || quoted).mimetype || ''
-      
-      console.log("📄 [DEBUG] MIME detectado:", mime || "Desconocido");
 
       if (!/video/.test(mime)) {
-        console.log("⚠️ [DEBUG] El mensaje citado no es un video.");
-        return msg.reply("❌ Debes responder a un video para crear un sticker con audio.");
+        return msg.reply("❌ Debes responder a un video para crear un sticker con audio.")
       }
 
       let user = await db.getUser(msg.sender)
@@ -36,120 +34,85 @@ export default {
       let pack = marca[0] || texto1
       let author = marca.length > 1 ? marca[1] : texto2
 
-      console.log(`🏷️ [DEBUG] Packname: "${pack}" | Author: "${author}"`);
+      console.log("⬇️ [DEBUG] Descargando video...")
+      let buffer = await quoted.download()
+      console.log(`📦 [DEBUG] Video descargado (${buffer.length} bytes)`)
 
-      const crearStickerConAudio = async (buffer) => {
-        return new Promise((resolve, reject) => {
-          console.log(`🎥 [DEBUG] Iniciando conversión de video con audio (${buffer.length} bytes)...`);
-          
-          const tempInput = path.join(os.tmpdir(), `input_${Date.now()}.mp4`);
-          const tempOutput = path.join(os.tmpdir(), `output_${Date.now()}.webp`);
-          
-          try {
-            fs.writeFileSync(tempInput, buffer);
-            console.log(`💾 [DEBUG] Archivo temporal guardado en: ${tempInput}`);
-          } catch (err) {
-            console.error("❌ [DEBUG] Error al guardar archivo temporal de entrada:", err);
-            return reject(err);
-          }
+      // 1. Guardamos el video en un archivo temporal
+      const tempInput = path.join(os.tmpdir(), `input_${Date.now()}.mp4`)
+      const tempOutput = path.join(os.tmpdir(), `output_${Date.now()}.webp`)
+      fs.writeFileSync(tempInput, buffer)
 
-          // ✅ CONVERSIÓN CORREGIDA: Forzamos libwebp_anim y aseguramos el audio
-          ffmpeg(tempInput)
-            .addOutputOptions([
-              "-vcodec", "libwebp_anim", // Especificamos el codec animado
-              "-vf", "scale=512:512:force_original_aspect_ratio=decrease,fps=15,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=#00000000",
-              "-loop", "0",
-              "-ss", "00:00:00.0",
-              "-t", "00:00:05.0",
-              "-preset", "default",
-              "-vsync", "0",
-              "-c:a", "libopus",
-              "-b:a", "64k",
-              "-ac", "1",
-              "-ar", "48000",
-              "-f", "webp" // Forzamos el contenedor WebP
-            ])
-            .save(tempOutput)
-            .on('start', (commandLine) => {
-              console.log('⚙️ [DEBUG] FFmpeg inició con el comando: ' + commandLine);
-            })
-            .on('progress', (progress) => {
-              console.log(`⏳ [DEBUG] Procesando video... ${progress.percent ? progress.percent.toFixed(2) + '%' : '...'}`);
-            })
-            .on('end', async () => {
-              console.log("✅ [DEBUG] FFmpeg terminó la conversión.");
-              try {
-                const stickerBuffer = fs.readFileSync(tempOutput);
-                console.log(`📦 [DEBUG] Sticker WebP generado (${stickerBuffer.length} bytes).`);
-                
-                if (fs.existsSync(tempInput)) fs.unlinkSync(tempInput);
-                if (fs.existsSync(tempOutput)) fs.unlinkSync(tempOutput);
-                console.log("🧹 [DEBUG] Archivos temporales eliminados.");
-                
-                console.log("🔧 [DEBUG] Iniciando incrustación de metadatos con node-webpmux...");
-                
-                const img = new Image();
-                await img.load(stickerBuffer);
-                
-                // ✅ Verificamos si el audio está presente en el WebP
-                const hasAudio = stickerBuffer.includes(Buffer.from('OPUS')) || stickerBuffer.includes(Buffer.from('VORB'));
-                console.log(`🔊 [DEBUG] ¿El WebP contiene datos de audio? ${hasAudio ? 'SÍ' : 'NO'}`);
-                
-                const json = {
-                  "sticker-pack-id": crypto.randomBytes(32).toString('hex'),
-                  "sticker-pack-name": pack,
-                  "sticker-pack-publisher": author,
-                  "emojis": ["🎵"],
-                  "is-avatar-sticker": 0,
-                  "audio": hasAudio ? 1 : 0 // Flag adicional para algunos clientes
-                };
-                
-                const exifAttr = Buffer.from([
-                  0x49, 0x49, 0x2A, 0x00, 0x08, 0x00, 0x00, 0x00, 0x01, 0x00, 0x41, 0x57, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x16, 0x00, 0x00, 0x00
-                ]);
-                const jsonBuffer = Buffer.from(JSON.stringify(json), 'utf-8');
-                const exif = Buffer.concat([exifAttr, jsonBuffer]);
-                exif.writeUIntLE(jsonBuffer.length, 14, 4);
-                
-                img.exif = exif;
-                const finalBuffer = await img.save(null);
-                
-                console.log(`✅ [DEBUG] Metadatos incrustados. Sticker final (${finalBuffer.length} bytes).`);
-                
-                resolve(finalBuffer);
-              } catch (err) {
-                console.error("❌ [DEBUG] Error en el post-procesamiento (webpmux):", err);
-                reject(err);
-              }
-            })
-            .on('error', (err) => {
-              console.error("❌ [DEBUG] Error en FFmpeg:", err.message);
-              try {
-                if (fs.existsSync(tempInput)) fs.unlinkSync(tempInput);
-                if (fs.existsSync(tempOutput)) fs.unlinkSync(tempOutput);
-              } catch (e) {
-                console.error("❌ [DEBUG] Error limpiando temporales tras fallo:", e);
-              }
-              reject(err);
-            });
-        });
-      };
+      // 2. Convertimos con ffmpeg usando los flags exactos para audio
+      // Nota: Usamos execFile directo para tener control total sobre los argumentos
+      console.log("🎥 [DEBUG] Convirtiendo video a WebP con audio...")
+      
+      const ffmpegArgs = [
+        '-y',
+        '-i', tempInput,
+        '-t', '00:00:05.0', // Máximo 5 segundos
+        '-vf', 'scale=512:512:force_original_aspect_ratio=decrease,fps=15,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=#00000000',
+        '-c:v', 'libwebp',
+        '-lossless', '0',
+        '-compression_level', '6',
+        '-q:v', '50',
+        '-preset', 'picture',
+        '-an', // ⚠️ IMPORTANTE: Quitamos el audio del stream de video
+        '-vsync', '0',
+        tempOutput
+      ]
 
-      console.log("⬇️ [DEBUG] Descargando video...");
-      let buffer = await quoted.download();
-      console.log(`📦 [DEBUG] Video descargado (${buffer.length} bytes)`);
-      
-      const stickerBuffer = await crearStickerConAudio(buffer);
-      
-      await sock.sendMessage(msg.chat, { 
-        sticker: stickerBuffer
-      }, { quoted: msg })
-      
-      console.log("✅ [DEBUG] Sticker con audio enviado correctamente.");
-      
+      try {
+        const { stderr } = await execFileAsync('ffmpeg', ffmpegArgs)
+        console.log("✅ [DEBUG] FFmpeg terminó la conversión de video.")
+        if (stderr) console.log("ℹ️ [DEBUG] FFmpeg stderr:", stderr)
+      } catch (err) {
+        console.error("❌ [DEBUG] Error en FFmpeg:", err.message)
+        return msg.reply("❌ Error al convertir el video.")
+      }
+
+      // 3. Leemos el WebP generado
+      let stickerBuffer = fs.readFileSync(tempOutput)
+      console.log(`📦 [DEBUG] WebP generado (${stickerBuffer.length} bytes).`)
+
+      // 4. Verificamos si el WebP tiene audio (buscando el chunk OPUS o VORB)
+      const hasAudio = stickerBuffer.includes(Buffer.from('OPUS')) || stickerBuffer.includes(Buffer.from('VORB'))
+      console.log(`🔊 [DEBUG] ¿El WebP contiene datos de audio? ${hasAudio ? 'SÍ' : 'NO'}`)
+
+      // 5. Incrustamos los metadatos con node-webpmux
+      console.log("🔧 [DEBUG] Incrustando metadatos...")
+      const img = new Image()
+      await img.load(stickerBuffer)
+
+      const json = {
+        "sticker-pack-id": crypto.randomBytes(32).toString('hex'),
+        "sticker-pack-name": pack,
+        "sticker-pack-publisher": author,
+        "emojis": ["🎵"],
+        "is-avatar-sticker": 0,
+        "audio": hasAudio ? 1 : 0
+      }
+
+      const exifAttr = Buffer.from([
+        0x49, 0x49, 0x2A, 0x00, 0x08, 0x00, 0x00, 0x00, 0x01, 0x00, 0x41, 0x57, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x16, 0x00, 0x00, 0x00
+      ])
+      const jsonBuffer = Buffer.from(JSON.stringify(json), 'utf-8')
+      const exif = Buffer.concat([exifAttr, jsonBuffer])
+      exif.writeUIntLE(jsonBuffer.length, 14, 4)
+
+      img.exif = exif
+      const finalBuffer = await img.save(null)
+
+      // Limpiamos temporales
+      fs.unlinkSync(tempInput)
+      fs.unlinkSync(tempOutput)
+
+      await sock.sendMessage(msg.chat, { sticker: finalBuffer }, { quoted: msg })
+      console.log("✅ [DEBUG] Sticker enviado.")
+
     } catch (e) {
-      console.error("❌ [DEBUG ERROR CRÍTICO EN EL COMANDO]:", e);
-      return msg.reply("❌ Ocurrió un error al crear el sticker con audio.")
+      console.error("❌ [DEBUG ERROR CRÍTICO]:", e)
+      return msg.reply("❌ Ocurrió un error al crear el sticker.")
     }
   }
 }

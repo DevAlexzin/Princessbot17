@@ -4,8 +4,10 @@ import os from 'os'
 import path from 'path'
 import fetch from 'node-fetch'
 import ffmpeg from 'fluent-ffmpeg'
-import { Image } from 'node-webpmux'
+import webpmux from 'node-webpmux' // ✅ Importación corregida para CommonJS
 import crypto from 'crypto'
+
+const { Image } = webpmux; // ✅ Desestructuración de Image
 
 export default {
   command: ['saudio', 'stickeraudio'],
@@ -36,7 +38,6 @@ export default {
 
       console.log(`🏷️ [DEBUG] Packname: "${pack}" | Author: "${author}"`);
 
-      // ✅ FUNCIÓN PARA CREAR EL STICKER CON AUDIO
       const crearStickerConAudio = async (buffer) => {
         return new Promise((resolve, reject) => {
           console.log(`🎥 [DEBUG] Iniciando conversión de video con audio (${buffer.length} bytes)...`);
@@ -52,7 +53,6 @@ export default {
             return reject(err);
           }
 
-          // Usamos ffmpeg para convertir el video a WebP animado CON audio
           ffmpeg(tempInput)
             .addOutputOptions([
               "-vcodec", "libwebp",
@@ -62,8 +62,6 @@ export default {
               "-t", "00:00:05.0",
               "-preset", "default",
               "-vsync", "0",
-              // ✅ AQUÍ ESTÁ LA CLAVE PARA EL AUDIO
-              // Usamos libopus para codificar el audio y lo incluimos en el WebP
               "-c:a", "libopus", 
               "-b:a", "64k",
               "-ac", "1",
@@ -83,19 +81,15 @@ export default {
                 const stickerBuffer = fs.readFileSync(tempOutput);
                 console.log(`📦 [DEBUG] Sticker WebP generado (${stickerBuffer.length} bytes).`);
                 
-                // Limpiamos los archivos temporales
                 if (fs.existsSync(tempInput)) fs.unlinkSync(tempInput);
                 if (fs.existsSync(tempOutput)) fs.unlinkSync(tempOutput);
                 console.log("🧹 [DEBUG] Archivos temporales eliminados.");
                 
-                // ✅ AHORA USAMOS node-webpmux PARA INCRUSTAR LOS METADATOS DEL STICKER
-                // Esto es necesario para que WhatsApp lo reconozca como sticker con audio
                 console.log("🔧 [DEBUG] Iniciando incrustación de metadatos con node-webpmux...");
                 
                 const img = new Image();
                 await img.load(stickerBuffer);
                 
-                // Creamos el JSON de metadatos que WhatsApp espera
                 const json = {
                   "sticker-pack-id": crypto.randomBytes(32).toString('hex'),
                   "sticker-pack-name": pack,
@@ -104,7 +98,6 @@ export default {
                   "is-avatar-sticker": 0
                 };
                 
-                // Convertimos el JSON a un buffer con el prefijo EXIF correcto
                 const exifAttr = Buffer.from([
                   0x49, 0x49, 0x2A, 0x00, 0x08, 0x00, 0x00, 0x00, 0x01, 0x00, 0x41, 0x57, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x16, 0x00, 0x00, 0x00
                 ]);

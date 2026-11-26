@@ -3,8 +3,6 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import ffmpeg from 'fluent-ffmpeg'
-import pkg from 'node-webpmux';
-const { Image } = pkg;
 
 export default {
   command: ['saudio', 'stickeraudio'],
@@ -56,7 +54,7 @@ export default {
             "-t", "00:00:05.0",
             "-preset", "default",
             "-vsync", "0",
-            "-c:a", "libopus",
+            "-c:a", "libopus", // Códec de audio para WhatsApp
             "-b:a", "64k"
           ])
           .toFormat('webp')
@@ -70,33 +68,15 @@ export default {
 
       const stickerBuffer = fs.readFileSync(tempOut);
 
-      // 3. Inyectar metadatos (Packname y Author) usando node-webpmux
-      const img = new Image();
-      await img.load(stickerBuffer);
-      
-      const json = {
-        "sticker-pack-id": "com.alisa.kujou.bot",
-        "sticker-pack-name": pack,
-        "sticker-pack-publisher": author,
-        "emojis": ["✨"]
-      };
-      
-      const exifAttr = Buffer.from([0x49, 0x49, 0x2A, 0x00, 0x08, 0x00, 0x00, 0x00, 0x01, 0x00, 0x41, 0x57, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x16, 0x00, 0x00, 0x00]);
-      const jsonBuff = Buffer.from(JSON.stringify(json), "utf-8");
-      const exif = Buffer.concat([exifAttr, jsonBuff]);
-      exif.writeUIntLE(jsonBuff.length, 14, 4);
-      
-      img.exif = exif;
-      const finalBuffer = await img.save(null);
-
-      // 4. ENVÍO CRÍTICO: Forzar el tipo de sticker y pasar el buffer final
+      // 3. Enviar el sticker con audio
+      // La nueva librería @dnuzi/baileys detecta automáticamente el audio en el WebP
       await sock.sendMessage(msg.chat, { 
-        sticker: finalBuffer,
-        // Algunos forks necesitan que se especifique el mimetype para no perder el audio
-        mimetype: 'image/webp' 
+        sticker: stickerBuffer,
+        packname: pack,
+        author: author
       }, { quoted: msg });
 
-      // Limpieza
+      // Limpieza de archivos temporales
       if (fs.existsSync(tempIn)) fs.unlinkSync(tempIn);
       if (fs.existsSync(tempOut)) fs.unlinkSync(tempOut);
 

@@ -1,7 +1,7 @@
 import db from "#db"
 import fs from 'fs'
 import path from 'path'
-import { downloadContentFromMessage } from 'baileys'
+import { downloadContentFromMessage } from '@dnuzi/baileys'
 
 export default {
   command: ['saveform', 'guardarform', 'setform'],

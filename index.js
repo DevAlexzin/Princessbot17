@@ -1,7 +1,6 @@
 import "./settings.js";
 import handler from '#handler';
 import events from '#events';
-// ⚠️ AQUÍ ESTÁ LA CORRECCIÓN: Cambiamos 'baileys' por '@dnuzi/baileys'
 import makeWASocket, { Browsers, makeCacheableSignalKeyStore, useMultiFileAuthState, fetchLatestBaileysVersion, jidDecode, DisconnectReason } from '@dnuzi/baileys';
 import pino from "pino";
 import qrcode from "qrcode-terminal";
@@ -12,7 +11,7 @@ import readlineSync from "readline-sync";
 import { smsg, deleteCachedMeta } from "#serialize";
 import cmdsLoader from '#cmdsloader';
 import "#db";
-import { startSubBot } from '#subs';
+// import { startSubBot } from '#subs'; // Desactivado temporalmente
 import db from '#db';
 import { iniciarCompeChecker } from './cmds/compeChecker.js';
 import { iniciarReglasChecker } from './cmds/reglasChecker.js';
@@ -45,9 +44,12 @@ console.log(chalk.cyan(`
      Powered by Alexander ~
 `))
 
+// ⚠️ DESACTIVADO PORQUE EL ARCHIVO subbot.js NO EXISTE
+/*
 const BOT_TYPES = [
   { name: 'SubBot', folder: './Sessions/Subs', starter: startSubBot }
 ]
+*/
 
 if (!fs.existsSync('./lib/system/tmp')) fs.mkdirSync('./lib/system/tmp', { recursive: true });
 global.conns = global.conns || [];
@@ -55,6 +57,8 @@ const reconnecting = new Set();
 const msgStore = new Map();
 const msgLimit = 500;
 
+// ⚠️ FUNCIÓN DESACTIVADA
+/*
 async function loadBots() {
   for (const { name, folder, starter } of BOT_TYPES) {
     if (!fs.existsSync(folder)) continue;
@@ -77,6 +81,7 @@ async function loadBots() {
   }
   setTimeout(loadBots, 60 * 1000);
 }
+*/
 
 async function initDB() {
   try {
@@ -300,6 +305,6 @@ export async function startBot() {
 (async () => {
   await initDB();
   await cmdsLoader();
-  loadBots();
+  // loadBots(); // Desactivado porque el archivo subbot.js no existe
   await startBot();
 })();

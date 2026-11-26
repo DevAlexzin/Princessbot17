@@ -1,9 +1,9 @@
-// cmds/sticker/saudio.js
 import db from "#db"
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import ffmpeg from 'fluent-ffmpeg'
+import { Image } from 'node-webpmux' // <-- Importamos la librería
 
 export default {
   command: ['saudio', 'stickeraudio'],
@@ -16,8 +16,6 @@ export default {
       const quoted = msg.quoted ? msg.quoted : msg;
       const mime = (quoted.msg || quoted).mimetype || '';
       const isVideo = /video/.test(mime);
-      const isImage = /image/.test(mime) || /webp/.test(mime);
-      const isAudio = /audio/.test(mime);
 
       let user = await db.getUser(msg.sender);
       const name = user.name || 'Usuario';
@@ -27,102 +25,80 @@ export default {
       let pack = marca[0] || texto1;
       let author = marca.length > 1 ? marca[1] : texto2;
 
-      const crearStickerVideo = async (buffer) => {
-        return new Promise((resolve, reject) => {
-          const tempInput = path.join(os.tmpdir(), `in_${Date.now()}.mp4`);
-          const tempOutput = path.join(os.tmpdir(), `out_${Date.now()}.webp`);
-          fs.writeFileSync(tempInput, buffer);
+      if (!isVideo) {
+        return msg.reply('❖ Envía o responde a un *video* con `.saudio` para crear un sticker con su audio integrado.');
+      }
 
-          ffmpeg(tempInput)
-            .addOutputOptions([
-              "-vcodec", "libwebp",
-              "-vf", "scale=512:512:force_original_aspect_ratio=decrease,fps=15,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=#00000000",
-              "-loop", "0", "-ss", "00:00:00.0", "-t", "00:00:05.0",
-              "-preset", "default", "-an", "-vsync", "0"
-            ])
-            .toFormat('webp')
-            .save(tempOutput)
-            .on('end', () => {
-              const buf = fs.readFileSync(tempOutput);
-              fs.unlinkSync(tempInput); fs.unlinkSync(tempOutput);
-              resolve(buf);
-            })
-            .on('error', (err) => {
-              if (fs.existsSync(tempInput)) fs.unlinkSync(tempInput);
-              if (fs.existsSync(tempOutput)) fs.unlinkSync(tempOutput);
-              reject(err);
-            });
-        });
+      const seconds = (quoted.msg || quoted).seconds;
+      if (seconds && seconds > 10) {
+        return msg.reply('❖ El video no puede durar más de 10 segundos.');
+      }
+
+      console.log("🎥 [DEBUG] Video detectado, generando sticker con audio...");
+      const buffer = await quoted.download();
+      
+      const tempIn = path.join(os.tmpdir(), `in_${Date.now()}.mp4`);
+      const tempOut = path.join(os.tmpdir(), `out_${Date.now()}.webp`); 
+      
+      fs.writeFileSync(tempIn, buffer);
+
+      // 1. Convertir video a WebP conservando el audio
+      await new Promise((resolve, reject) => {
+        ffmpeg(tempIn)
+          .addOutputOptions([
+            "-vcodec", "libwebp",
+            "-vf", "scale=512:512:force_original_aspect_ratio=decrease,fps=15,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=#00000000",
+            "-loop", "0",
+            "-ss", "00:00:00.0",
+            "-t", "00:00:05.0",
+            "-preset", "default",
+            // ⚠️ QUITAMOS EL "-an" PARA CONSERVAR EL AUDIO
+            "-vsync", "0",
+            "-c:a", "libopus",
+            "-b:a", "64k"
+          ])
+          .toFormat('webp')
+          .save(tempOut)
+          .on('end', resolve)
+          .on('error', (err) => {
+            console.error("❌ [DEBUG] Error en FFmpeg:", err);
+            reject(err);
+          });
+      });
+
+      const stickerBuffer = fs.readFileSync(tempOut);
+
+      // 2. Inyectar metadatos (Packname y Author) usando node-webpmux
+      const img = new Image();
+      await img.load(stickerBuffer);
+      
+      // Crear el JSON de metadatos estilo WhatsApp
+      const json = {
+        "sticker-pack-id": "com.alisa.kujou.bot",
+        "sticker-pack-name": pack,
+        "sticker-pack-publisher": author,
+        "emojis": ["✨"]
       };
+      
+      const exifAttr = Buffer.from([0x49, 0x49, 0x2A, 0x00, 0x08, 0x00, 0x00, 0x00, 0x01, 0x00, 0x41, 0x57, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x16, 0x00, 0x00, 0x00]);
+      const jsonBuff = Buffer.from(JSON.stringify(json), "utf-8");
+      const exif = Buffer.concat([exifAttr, jsonBuff]);
+      exif.writeUIntLE(jsonBuff.length, 14, 4);
+      
+      img.exif = exif;
+      const finalBuffer = await img.save(null);
 
-      const extraerAudio = async (videoBuffer) => {
-        return new Promise((resolve, reject) => {
-          const tempIn = path.join(os.tmpdir(), `aud_in_${Date.now()}.mp4`);
-          const tempOut = path.join(os.tmpdir(), `aud_out_${Date.now()}.ogg`);
-          fs.writeFileSync(tempIn, videoBuffer);
+      // 3. Enviar el sticker con audio
+      await sock.sendMessage(msg.chat, { 
+        sticker: finalBuffer
+      }, { quoted: msg });
 
-          ffmpeg(tempIn)
-            .addOutputOptions([
-              "-vn",
-              "-c:a", "libopus",
-              "-ac", "1",
-              "-ar", "48000",
-              "-avoid_negative_ts", "make_zero"
-            ])
-            .toFormat('ogg')
-            .save(tempOut)
-            .on('end', () => {
-              const buf = fs.readFileSync(tempOut);
-              fs.unlinkSync(tempIn); fs.unlinkSync(tempOut);
-              resolve(buf);
-            })
-            .on('error', (err) => {
-              if (fs.existsSync(tempIn)) fs.unlinkSync(tempIn);
-              if (fs.existsSync(tempOut)) fs.unlinkSync(tempOut);
-              reject(err);
-            });
-        });
-      };
+      // Limpieza
+      if (fs.existsSync(tempIn)) fs.unlinkSync(tempIn);
+      if (fs.existsSync(tempOut)) fs.unlinkSync(tempOut);
 
-      if (isVideo) {
-        console.log("🎥 [DEBUG] Video detectado, generando sticker + audio...");
-        const seconds = (quoted.msg || quoted).seconds;
-        if (seconds && seconds > 10) {
-          return msg.reply('❖ El video no puede durar más de 10 segundos para hacer sticker con audio.');
-        }
-
-        const buffer = await quoted.download();
-        const [stickerBuffer, audioBuffer] = await Promise.all([
-          crearStickerVideo(buffer),
-          extraerAudio(buffer)
-        ]);
-
-        await sock.sendMessage(msg.chat, {
-          sticker: stickerBuffer,
-          packname: pack,
-          author: author
-        }, { quoted: msg });
-
-        await sock.sendMessage(msg.chat, {
-          audio: audioBuffer,
-          mimetype: 'audio/ogg; codecs=opus',
-          ptt: true
-        }, { quoted: msg });
-
-        console.log("✅ [DEBUG] Sticker con audio enviado.");
-        return;
-      }
-
-      if (isImage) {
-        return msg.reply('❖ Responde a esta imagen con un audio/video para hacer sticker con sonido. O usa `.saudio` respondiendo directamente a un video.');
-      }
-
-      if (isAudio) {
-        return msg.reply('❖ Responde a un *video* con `.saudio` para obtener sticker + audio automáticamente.');
-      }
-
-      return msg.reply('❖ Envía o responde a un video con `.saudio` para crear sticker con su audio.');
-
+      console.log("✅ [DEBUG] Sticker con audio enviado.");
+      
     } catch (e) {
       console.error("❌ [DEBUG ERROR CRÍTICO saudio]:", e);
       return msg.reply("❌ Ocurrió un error al crear el sticker con audio.");

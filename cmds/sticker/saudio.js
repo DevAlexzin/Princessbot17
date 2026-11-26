@@ -3,7 +3,8 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import ffmpeg from 'fluent-ffmpeg'
-import { Image } from 'node-webpmux' // <-- Importamos la librería
+import pkg from 'node-webpmux'; // <-- Importación corregida
+const { Image } = pkg;
 
 export default {
   command: ['saudio', 'stickeraudio'],
@@ -72,7 +73,6 @@ export default {
       const img = new Image();
       await img.load(stickerBuffer);
       
-      // Crear el JSON de metadatos estilo WhatsApp
       const json = {
         "sticker-pack-id": "com.alisa.kujou.bot",
         "sticker-pack-name": pack,

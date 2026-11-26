@@ -1,4 +1,4 @@
-import { generateWAMessageContent, generateWAMessageFromContent } from 'baileys'
+import { generateWAMessageContent, generateWAMessageFromContent } from '@dnuzi/baileys'
 
 const sendGroupStatus = async (sock, jid, options = {}) => {
   const {

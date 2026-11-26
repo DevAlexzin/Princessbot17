@@ -1,5 +1,5 @@
 import db from "#db"
-import { prepareWAMessageMedia } from 'baileys';
+import { prepareWAMessageMedia } from '@dnuzi/baileys';
 import os from 'os';
 
 function rTime(seconds) {
